@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Owner-only uploads and reads for user folders (body photos, garment scans, 3D twin exports)
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Public catalog assets (3D sample models, mock store assets)
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Server-managed only
+    }
+  }
+}

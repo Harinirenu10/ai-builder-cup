@@ -1,0 +1,11 @@
+{
+  "recommended_size": "M",
+  "confidence": 0.94,
+  "verdict": "Comfortable regular fit across chest with +4.0 cm ease; sleeve length falls at mid-bicep.",
+  "zone_deltas": {
+    "chest": 4.0,
+    "waist": 6.5,
+    "garment_length": 2.0
+  },
+  "details": "The 100% heavyweight cotton construction provides structured drape with minimal stretch."
+}

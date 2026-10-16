@@ -1,0 +1,11 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "packages/fitcore",
+    "services/api",
+    "services/geometry",
+    "services/reader"
+  ],
+  "pythonVersion": "3.12"
+}

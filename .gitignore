@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Web build output
+web/dist/
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Licensed SMPL model assets
+services/geometry/models/smpl/*.pkl
+services/geometry/models/smpl/*.npz
+services/geometry/models/smpl/*.json
+!services/geometry/models/smpl/README.md
+!services/geometry/models/smpl/.gitkeep
+*.task
+
+# Downloaded SMPL-X Blender add-on
+smplx_blender_addon/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
