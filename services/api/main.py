@@ -2,7 +2,21 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fitcore.schemas import FitResult, Product, MeasurementZone
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
+
+from fitcore.fit import apply_reviews, evaluate, explain, tailor_card
+from fitcore.fit.verdict import business_verdict
+from fitcore.schemas import (
+    BizVerdict,
+    FitPreferences,
+    FitResult,
+    Measurements,
+    PoseDeltas,
+    Product,
+    ReviewSignal,
+    TailorCard,
+)
 
 app = FastAPI(
     title="Measured Fit API Service",
@@ -28,6 +42,55 @@ def healthz() -> dict[str, str]:
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "Measured Fit API service online"}
+
+
+class FitRequest(BaseModel):
+    """Inputs for one fit evaluation. The twin is sent by its owner; Firestore lookup by twin_id comes later."""
+    product: Product
+    twin: Measurements
+    review_signals: list[ReviewSignal] = Field(default_factory=list)
+    preferences: FitPreferences | None = None
+    pose_deltas: PoseDeltas | None = None
+
+
+class FitResponse(BaseModel):
+    result: FitResult
+    review_notes: list[str] = Field(default_factory=list)
+    explanation: str | None = None
+
+
+def _evaluate(req: FitRequest) -> tuple[FitResult, list[str]]:
+    adjustments, notes = (None, [])
+    if req.review_signals:
+        adjustments, notes = apply_reviews(req.review_signals, req.twin)
+    try:
+        return evaluate(req.twin, req.product, req.preferences, adjustments, req.pose_deltas), notes
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.post("/v1/fit", response_model=FitResponse)
+def fit(req: FitRequest, explain_text: bool = False, language: str = "en") -> FitResponse:
+    """Customer endpoint: full fit result for the owner. Set explain_text=true for a Gemini/Gemma explanation."""
+    result, notes = _evaluate(req)
+    text = explain(result, language) if explain_text else None
+    return FitResponse(result=result, review_notes=notes, explanation=text)
+
+
+@app.post("/v1/biz/verdict", response_model=BizVerdict)
+def biz_verdict(req: FitRequest) -> BizVerdict:
+    """Business endpoint: verdicts only. Never returns measurements, ease values or cm figures."""
+    result, _ = _evaluate(req)
+    return business_verdict(result)
+
+
+@app.post("/v1/tailor-card", response_model=TailorCard)
+def tailor(req: FitRequest, languages: str = "en") -> TailorCard:
+    """Customer endpoint: tailor card JSON. languages is comma separated, e.g. en,ta."""
+    result, _ = _evaluate(req)
+    if result.recommended_size is None:
+        raise HTTPException(status_code=409, detail="No size fits, so there is no tailor card.")
+    return tailor_card(result, req.twin, [l.strip() for l in languages.split(",") if l.strip()])
 
 
 if __name__ == "__main__":

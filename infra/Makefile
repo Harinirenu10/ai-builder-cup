@@ -45,6 +45,7 @@ dev:
 
 test:
 	pytest packages/fitcore/tests -v
+	python -m pytest services/api/tests -v
 
 deploy-api:
 	$(EXEC_PREFIX) gcloud run deploy $(API_SERVICE) \

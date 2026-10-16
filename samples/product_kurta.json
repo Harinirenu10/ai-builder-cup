@@ -1,0 +1,55 @@
+{
+  "_note": "SIMULATED sample product (fictional brand), not a real listing",
+  "id": "sim_kurta_001",
+  "brand": "Demo Threads Co.",
+  "title": "Rayon Straight Kurta",
+  "category": "kurta",
+  "fit_type": "regular",
+  "fabric": [
+    {
+      "fiber": "rayon",
+      "percent": 100
+    }
+  ],
+  "stretch_class": "none",
+  "pre_shrunk": null,
+  "size_chart": {
+    "chart_type": "garment",
+    "size_system": "ALPHA",
+    "unit": "cm",
+    "sizes": {
+      "S": {
+        "chest": 104,
+        "waist": 98,
+        "hip": 104,
+        "shoulder_width": 42.5,
+        "sleeve_length": 57.5,
+        "garment_length": 88
+      },
+      "M": {
+        "chest": 110,
+        "waist": 104,
+        "hip": 110,
+        "shoulder_width": 44,
+        "sleeve_length": 59,
+        "garment_length": 90
+      },
+      "L": {
+        "chest": 116,
+        "waist": 110,
+        "hip": 116,
+        "shoulder_width": 45.5,
+        "sleeve_length": 60.5,
+        "garment_length": 92
+      },
+      "XL": {
+        "chest": 122,
+        "waist": 116,
+        "hip": 122,
+        "shoulder_width": 47,
+        "sleeve_length": 62,
+        "garment_length": 94
+      }
+    }
+  }
+}

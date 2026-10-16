@@ -1,0 +1,13 @@
+[
+  {
+    "zone": "chest",
+    "direction": "smaller",
+    "strength": "slight"
+  },
+  {
+    "zone": "garment_length",
+    "direction": "smaller",
+    "strength": "moderate",
+    "context": "long_torso"
+  }
+]

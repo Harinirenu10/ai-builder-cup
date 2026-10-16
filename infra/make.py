@@ -87,6 +87,7 @@ def run_target(target_name: str, extra_args: dict[str, str]) -> int:
     elif target_name == "test":
         pytest_cmd = "pytest" if shutil.which("pytest") else f'"{sys.executable}" -m pytest'
         commands.append((f"{pytest_cmd} packages/fitcore/tests -v", REPO_ROOT))
+        commands.append((f"{pytest_cmd} services/api/tests -v", REPO_ROOT))
     elif target_name == "dev":
         print("Dev target: Spawns microservices with uvicorn --reload and Firebase emulators.")
         commands.append(("uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --reload", REPO_ROOT))

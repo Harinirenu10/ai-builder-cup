@@ -1,0 +1,37 @@
+# Stretch allowance and shrinkage. Every number is a starting value to tune.
+
+# How many cm below the minimum ease are acceptable before the garment reads tight or strains in a pose.
+stretch_allowance_cm:
+  none: 0.0   # TUNE
+  low: 2.0    # TUNE
+  high: 5.0   # TUNE
+
+# Shrinkage in percent after a first wash, by fiber.
+shrinkage_pct:
+  cotton:    {length: 3.0, width: 2.0}   # TUNE
+  linen:     {length: 3.5, width: 2.5}   # TUNE
+  rayon:     {length: 5.0, width: 3.0}   # TUNE
+  polyester: {length: 0.5, width: 0.5}   # TUNE
+  nylon:     {length: 0.5, width: 0.5}   # TUNE
+  elastane:  {length: 1.0, width: 1.0}   # TUNE
+  wool:      {length: 3.0, width: 3.0}   # TUNE
+  silk:      {length: 1.0, width: 1.0}   # TUNE
+  default:   {length: 2.0, width: 1.5}   # TUNE  unknown fiber or no fabric info
+
+# Multiplier on shrinkage when the garment is pre-shrunk. Unknown is treated as not pre-shrunk.
+pre_shrunk_factor: 0.3   # TUNE
+
+# Fiber names mapped to the keys above.
+fiber_aliases:
+  viscose: rayon
+  "rayon/viscose": rayon
+  modal: rayon
+  lyocell: rayon
+  tencel: rayon
+  spandex: elastane
+  lycra: elastane
+  elasthane: elastane
+  polyamide: nylon
+  organic cotton: cotton
+  pima cotton: cotton
+  flax: linen

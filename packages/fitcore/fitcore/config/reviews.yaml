@@ -1,0 +1,20 @@
+# Review signals to cm adjustments. Every number is a starting value to tune.
+# A positive adjustment means the garment runs smaller than its chart, so ease is reduced by that amount.
+
+strength_cm:
+  slight: 0.5     # TUNE
+  moderate: 1.5   # TUNE
+  strong: 3.0     # TUNE
+
+max_adjustment_cm: 4.0   # TUNE  cap per zone after summing signals
+
+# Signals with a context apply only when the twin matches it.
+contexts:
+  long_torso:
+    body_zone: torso_length
+    op: ">="
+    threshold_cm: 50.0   # TUNE
+  short_torso:
+    body_zone: torso_length
+    op: "<="
+    threshold_cm: 42.0   # TUNE
