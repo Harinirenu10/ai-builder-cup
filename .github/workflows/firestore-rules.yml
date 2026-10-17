@@ -1,0 +1,48 @@
+name: Firestore Rules Tests
+
+# Runs firestore-tests/rules.test.mjs against a real Firestore Emulator. Scoped to Firestore
+# rules testing only: no deploy, no production Firebase project, no credentials -- the emulator
+# runs under the fake --project demo-rules-test, which needs no real Firebase credentials. See
+# firestore-tests/rules.test.mjs for what the tests cover.
+"on":
+  push:
+    paths:
+      - 'firestore.rules'
+      - 'firestore-tests/**'
+      - '.github/workflows/firestore-rules.yml'
+  pull_request:
+    paths:
+      - 'firestore.rules'
+      - 'firestore-tests/**'
+      - '.github/workflows/firestore-rules.yml'
+  workflow_dispatch: {}
+
+jobs:
+  firestore-rules:
+    name: Firestore security rules tests (emulator)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firestore-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java (required by the Firestore Emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: firestore-tests/package-lock.json
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run Firestore security rules tests against the emulator
+        run: npm test
