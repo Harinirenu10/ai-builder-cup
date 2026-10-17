@@ -11,3 +11,4 @@ Pillow>=10.0
 pyarrow>=15.0
 numpy>=1.26
 -e ../../packages/fitcore
+firebase-admin>=6.5.0

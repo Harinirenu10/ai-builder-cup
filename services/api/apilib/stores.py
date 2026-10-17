@@ -8,8 +8,11 @@ import json
 import os
 import threading
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
+
+TTL_FIELD = "expire_at"  # ISO string in every store; FirestoreStore writes it as a Timestamp so a Firestore TTL policy can delete the document
 
 
 class Store(Protocol):
@@ -18,6 +21,7 @@ class Store(Protocol):
     def update(self, coll: str, doc_id: str, fields: dict[str, Any]) -> None: ...
     def find(self, coll: str, **equals: Any) -> list[dict[str, Any]]: ...
     def add(self, coll: str, doc: dict[str, Any]) -> str: ...
+    def set_many(self, rows: list[tuple[str, str, dict[str, Any]]]) -> None: ...
 
 
 def new_id() -> str:
@@ -53,6 +57,12 @@ class MemoryStore:
         self.set(coll, doc_id, doc)
         return doc_id
 
+    def set_many(self, rows: list[tuple[str, str, dict[str, Any]]]) -> None:
+        """Write (collection, id, document) rows together."""
+        with self._lock:
+            for coll, doc_id, doc in rows:
+                self.data.setdefault(coll, {})[doc_id] = json.loads(json.dumps({**doc, "id": doc_id}))
+
 
 class FileStore(MemoryStore):
     """MemoryStore that persists every change to one JSON file, so a seed script and the server share data."""
@@ -87,6 +97,21 @@ class FileStore(MemoryStore):
         self._load()
         return super().find(coll, **equals)
 
+    def set_many(self, rows):
+        self._load()
+        super().set_many(rows)
+        self._save()
+
+
+def _to_firestore(doc: dict[str, Any]) -> dict[str, Any]:
+    if isinstance(doc.get(TTL_FIELD), str):
+        doc = {**doc, TTL_FIELD: datetime.fromisoformat(doc[TTL_FIELD]).astimezone(timezone.utc)}
+    return doc
+
+
+def _from_firestore(doc: dict[str, Any]) -> dict[str, Any]:
+    return {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in doc.items()}
+
 
 class FirestoreStore:
     def __init__(self) -> None:
@@ -96,10 +121,10 @@ class FirestoreStore:
 
     def get(self, coll: str, doc_id: str) -> dict[str, Any] | None:
         snap = self._db.collection(coll).document(doc_id).get()
-        return {**snap.to_dict(), "id": doc_id} if snap.exists else None
+        return {**_from_firestore(snap.to_dict()), "id": doc_id} if snap.exists else None
 
     def set(self, coll: str, doc_id: str, doc: dict[str, Any]) -> None:
-        self._db.collection(coll).document(doc_id).set(doc)
+        self._db.collection(coll).document(doc_id).set(_to_firestore(doc))
 
     def update(self, coll: str, doc_id: str, fields: dict[str, Any]) -> None:
         self._db.collection(coll).document(doc_id).update(fields)
@@ -108,12 +133,20 @@ class FirestoreStore:
         q = self._db.collection(coll)
         for k, v in equals.items():
             q = q.where(k, "==", v)
-        return [{**s.to_dict(), "id": s.id} for s in q.stream()]
+        return [{**_from_firestore(s.to_dict()), "id": s.id} for s in q.stream()]
 
     def add(self, coll: str, doc: dict[str, Any]) -> str:
         ref = self._db.collection(coll).document()
-        ref.set(doc)
+        ref.set(_to_firestore(doc))
         return ref.id
+
+    def set_many(self, rows: list[tuple[str, str, dict[str, Any]]]) -> None:
+        """Batched writes, 400 per commit (the limit is 500)."""
+        for i in range(0, len(rows), 400):
+            batch = self._db.batch()
+            for coll, doc_id, doc in rows[i:i + 400]:
+                batch.set(self._db.collection(coll).document(doc_id), _to_firestore(doc))
+            batch.commit()
 
 
 _store: Store | None = None

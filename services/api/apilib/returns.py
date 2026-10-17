@@ -189,7 +189,8 @@ def file_return(body: ReturnIn, x_merchant_key: str | None = Header(default=None
 
 def desk_merchant(uid: str = Depends(current_uid), store: Store = Depends(get_store), x_merchant_id: str | None = Header(default=None)) -> dict[str, Any]:
     """The merchant whose staff list contains the signed-in user."""
-    mine = [m for m in store.find("merchants") if uid in m.get("staff_uids", [])]
+    sandbox = store.get("merchants", f"m_{uid}")  # a demo sandbox has its own merchant, found without scanning every merchant
+    mine = [sandbox] if sandbox and uid in sandbox.get("staff_uids", []) else [m for m in store.find("merchants") if uid in m.get("staff_uids", [])]
     if x_merchant_id:
         mine = [m for m in mine if m["id"] == x_merchant_id]
     if not mine:

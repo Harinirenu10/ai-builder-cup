@@ -58,3 +58,7 @@ Thumbs.db
 
 # API local store
 services/api/.data/
+
+# Cloud Run env files (secrets)
+infra/vars/*.yaml
+!infra/vars/*.example.yaml

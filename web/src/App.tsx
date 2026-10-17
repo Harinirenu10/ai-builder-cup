@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { CustomerApp } from './pages/CustomerApp';
+import { JudgePath } from './pages/JudgePath';
 import { BusinessConsole } from './pages/BusinessConsole';
 import { MockStore } from './pages/MockStore';
 import { ConnectPage } from './pages/ConnectPage';
@@ -17,6 +18,7 @@ const Layout: React.FC = () => (
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/app" element={<CustomerApp />} />
+        <Route path="/app/demo" element={<JudgePath />} />
         <Route path="/biz" element={<BusinessConsole />} />
         <Route path="/biz/returns" element={<ReturnsDesk />} />
         <Route path="/biz/charts" element={<ChartStudio />} />

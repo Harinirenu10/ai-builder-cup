@@ -9,7 +9,8 @@ GEOMETRY_SERVICE ?= fit-geometry
 READER_SERVICE ?= fit-reader
 TASKS_QUEUE ?= fit-jobs-queue
 
-# Cloud Run base flags (per specification)
+# Cloud Run base flags (per specification). infra/deploy.sh adds memory, auth and env-file flags per service
+# (geometry: GEOMETRY_FLAGS below = --cpu=4 --memory=8Gi --timeout=900) and --no-traffic once a revision is pinned.
 BASE_DEPLOY_FLAGS := --region=$(REGION) --min-instances=0 --max-instances=3 --cpu-boost
 GEOMETRY_FLAGS := $(BASE_DEPLOY_FLAGS) --cpu=4 --memory=8Gi --timeout=900
 
@@ -20,7 +21,16 @@ else
 EXEC_PREFIX :=
 endif
 
-.PHONY: all dev test deploy-api deploy-geometry deploy-reader deploy-web create-queue help
+.PHONY: setup seed smoke all dev test deploy-api deploy-geometry deploy-reader deploy-web create-queue help
+
+setup:
+	bash infra/setup.sh
+
+seed:
+	python seed/seed.py $(SEED_ARGS)
+
+smoke:
+	python infra/smoke_test.py $(BASE_URL)
 
 help:
 	@echo "Available targets:"
@@ -49,25 +59,13 @@ test:
 	python -m pytest services/reader/tests -v
 
 deploy-api:
-	$(EXEC_PREFIX) gcloud run deploy $(API_SERVICE) \
-		--source=. \
-		--dockerfile=services/api/Dockerfile \
-		$(BASE_DEPLOY_FLAGS) \
-		$${PROJECT:+--project=$$PROJECT}
+	DRY_RUN=$(DRY_RUN) BASE_DEPLOY_FLAGS="$(BASE_DEPLOY_FLAGS)" bash infra/deploy.sh api
 
 deploy-geometry:
-	$(EXEC_PREFIX) gcloud run deploy $(GEOMETRY_SERVICE) \
-		--source=. \
-		--dockerfile=services/geometry/Dockerfile \
-		$(GEOMETRY_FLAGS) \
-		$${PROJECT:+--project=$$PROJECT}
+	DRY_RUN=$(DRY_RUN) BASE_DEPLOY_FLAGS="$(BASE_DEPLOY_FLAGS)" bash infra/deploy.sh geometry
 
 deploy-reader:
-	$(EXEC_PREFIX) gcloud run deploy $(READER_SERVICE) \
-		--source=. \
-		--dockerfile=services/reader/Dockerfile \
-		$(BASE_DEPLOY_FLAGS) \
-		$${PROJECT:+--project=$$PROJECT}
+	DRY_RUN=$(DRY_RUN) BASE_DEPLOY_FLAGS="$(BASE_DEPLOY_FLAGS)" bash infra/deploy.sh reader
 
 deploy-web:
 	@cd web && npm run build

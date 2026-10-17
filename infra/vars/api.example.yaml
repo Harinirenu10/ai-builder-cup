@@ -1,0 +1,12 @@
+# Copy to infra/vars/api.yaml (gitignored) and fill in. Passed to Cloud Run with --env-vars-file.
+# Never set AUTH_MODE, GEMINI_API_KEY, OLLAMA_* or LLM_BACKEND here: the submitted demo uses Gemini on Vertex.
+GOOGLE_CLOUD_PROJECT: "your-project-id"
+GEMINI_PRO_MODEL: "model-id-from-model-garden"
+GEMINI_FLASH_MODEL: "model-id-from-model-garden"
+GEMINI_IMAGE_MODEL: "model-id-from-model-garden"
+VTO_MODEL: "model-id-from-model-garden"
+# python -c "import secrets; print(secrets.token_urlsafe(48))"
+CONSENT_JWT_SECRET: "paste-a-random-48-byte-string"
+# The Firebase Hosting origin(s), comma separated
+API_CORS_ORIGINS: "https://your-project.web.app,https://your-project.firebaseapp.com"
+DEMO_TTL_HOURS: "24"

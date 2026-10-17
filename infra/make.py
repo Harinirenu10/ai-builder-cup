@@ -68,6 +68,18 @@ def run_target(target_name: str, extra_args: dict[str, str]) -> int:
     project_flag = f" --project={project}" if project else ""
 
     commands: list[tuple[str, Path]] = []
+    bash = shutil.which("bash")
+    if bash and target_name in ("deploy-api", "deploy-geometry", "deploy-reader"):
+        env = {**os.environ, "DRY_RUN": "1" if dry_run else "0", "BASE_DEPLOY_FLAGS": base_deploy_flags, "REGION": region}
+        if project:
+            env["GOOGLE_CLOUD_PROJECT"] = project
+        return subprocess.run([bash, "infra/deploy.sh", target_name.removeprefix("deploy-")], cwd=REPO_ROOT, env=env).returncode
+    if target_name == "setup":
+        return subprocess.run([bash or "bash", "infra/setup.sh"], cwd=REPO_ROOT).returncode
+    if target_name == "smoke":
+        return subprocess.run([sys.executable, "infra/smoke_test.py", extra_args.get("BASE_URL", "")], cwd=REPO_ROOT).returncode
+    if target_name == "seed":
+        return subprocess.run([sys.executable, "seed/seed.py"], cwd=REPO_ROOT).returncode
     if target_name == "deploy-api":
         cmd = f"gcloud run deploy {api_service} --source=. --dockerfile=services/api/Dockerfile {base_deploy_flags}{project_flag}"
         commands.append((f"[DRY_RUN=1] {cmd}" if dry_run else cmd, REPO_ROOT))

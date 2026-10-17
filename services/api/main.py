@@ -12,8 +12,10 @@ from pydantic import BaseModel, Field
 
 from apilib.charts import router as charts_router
 from apilib.cors import DynamicCORS
+from apilib.demo import router as demo_router
 from apilib.fitquery import router as fit_query_router
 from apilib.gifts import router as gifts_router
+from apilib.me import router as me_router
 from apilib.orders import router as orders_router
 from apilib.returns import router as returns_router
 from apilib.simulate import router as simulate_router
@@ -32,7 +34,15 @@ from fitcore.schemas import (
     ReviewSignal,
     TailorCard,
 )
-from services.geometry.cloud_client import get_firestore_client, get_storage_client
+try:
+    from services.geometry.cloud_client import get_firestore_client, get_storage_client
+except ImportError as _cc_exc:  # the API image ships services/api only; the twin-job routes then answer 503
+    _cloud_client_error = _cc_exc
+
+    def get_firestore_client() -> Any:  # type: ignore[misc]
+        raise HTTPException(status_code=503, detail=f"Twin jobs unavailable: {_cloud_client_error}")
+
+    get_storage_client = get_firestore_client  # type: ignore[assignment]
 
 try:
     from services.geometry.worker import JobNotFoundError, process_twin_job
@@ -64,9 +74,12 @@ for _prefix in ("/v1", "/api/v1"):
     app.include_router(returns_router, prefix=_prefix)
     app.include_router(charts_router, prefix=_prefix)
     app.include_router(simulate_router, prefix=_prefix)
+    app.include_router(demo_router, prefix=_prefix)
+    app.include_router(me_router, prefix=_prefix)
 app.include_router(gifts_router)  # the gift paths also work without a prefix: POST /gifts, GET /gifts/{id}
 
 
+@app.get("/api/healthz")  # reachable through the Firebase Hosting /api/** rewrite
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     """Health check endpoint."""

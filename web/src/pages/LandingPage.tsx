@@ -1,8 +1,23 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, UserCheck, Ruler, Sparkles, Shield, BarChart3, Store } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { startDemoSession } from '../lib/demoAuth';
+import { ArrowRight, Loader2, Play, UserCheck, Ruler, Sparkles, Shield, BarChart3, Store } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [starting, setStarting] = React.useState(false);
+  const [demoError, setDemoError] = React.useState('');
+  const tryDemo = async () => {
+    setStarting(true);
+    setDemoError('');
+    try {
+      await startDemoSession();
+      navigate('/app/demo');
+    } catch (e) {
+      setDemoError(e instanceof Error ? e.message : 'The demo could not start. Please try again.');
+      setStarting(false);
+    }
+  };
   return (
     <div className="relative overflow-hidden">
       {/* Background radial gradients */}
@@ -28,6 +43,19 @@ export const LandingPage: React.FC = () => {
           </p>
 
           {/* Call to action portals */}
+          <div className="pt-4 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={tryDemo}
+              disabled={starting}
+              className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 text-white font-bold text-lg shadow-lg shadow-emerald-600/25"
+            >
+              {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+              <span>{starting ? 'Setting up your sandbox…' : 'Try demo'}</span>
+            </button>
+            <p className="text-xs text-slate-500">Five steps, about two minutes. Uses simulated data in your own private sandbox.</p>
+            {demoError && <p role="alert" className="text-sm text-red-600">{demoError}</p>}
+          </div>
           <div className="pt-4 flex flex-wrap justify-center gap-4">
             <Link
               to="/app"

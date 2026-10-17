@@ -1,0 +1,13 @@
+.git
+node_modules/
+web/node_modules/
+web/dist/
+**/__pycache__/
+**/.pytest_cache/
+**/.data/
+**/.cache/
+.env
+.env.*
+infra/vars/*.yaml
+eval/
+samples/products/

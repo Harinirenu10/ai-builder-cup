@@ -1,0 +1,4 @@
+# Copy to infra/vars/reader.yaml (gitignored).
+GOOGLE_CLOUD_PROJECT: "your-project-id"
+GEMINI_FLASH_MODEL: "model-id-from-model-garden"
+GEMINI_PRO_MODEL: "model-id-from-model-garden"

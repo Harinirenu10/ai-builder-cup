@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
 import { auth } from './firebase';
+import { savedSession } from './demoAuth';
 
 // Sign-in for the business desk. VITE_AUTH_MODE=dev (local work and tests only) lets you type a made-up user id;
 // otherwise it is Google sign-in through Firebase Auth and the API verifies the ID token.
@@ -10,7 +11,10 @@ export const DEV_AUTH = import.meta.env.VITE_AUTH_MODE === 'dev';
 
 export function useDeskAuth() {
   const [user, setUser] = useState<User | null>(null);
-  const [devUid, setDevUid] = useState('');
+  const [devUid, setDevUid] = useState(() => {
+    const demo = savedSession();
+    return demo?.auth_mode === 'dev' ? demo.uid : ''; // a local demo sandbox is already signed in
+  });
   const [error, setError] = useState('');
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUser(u)), []);
