@@ -140,8 +140,9 @@ const GIFT_APPROVED = { ...GIFT_PENDING, id: 'gift_2', recipient_uid: 'bob', sta
 
 async function seedGifts() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
-    await ctx.firestore().collection('gifts').doc(GIFT_PENDING.id).set(GIFT_PENDING);
-    await ctx.firestore().collection('gifts').doc(GIFT_APPROVED.id).set(GIFT_APPROVED);
+    const db = ctx.firestore();
+    await db.collection('gifts').doc(GIFT_PENDING.id).set(GIFT_PENDING);
+    await db.collection('gifts').doc(GIFT_APPROVED.id).set(GIFT_APPROVED);
   });
 }
 
