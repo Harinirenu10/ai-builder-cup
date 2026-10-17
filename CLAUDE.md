@@ -28,3 +28,4 @@ Thesis: "Measured, not guessed." We measure the body (a 3D twin from 4 photos) a
 - Tests: pytest, offline by default; Gemini calls in tests use recorded fixtures in tests/fixtures/llm/.
 - Done means: works locally, tests pass, deploys with make deploy-<service>, one README section.
 - Deterministic code for math and geometry; Gemini for perception, reasoning and language.
+- Keep HANDOFF.md current at every step: when you finish a piece of work, update its lists of what is pending, what is not tested, what is not built and the known limits, and the date at the top. Add what you could not verify, and remove items you have verified or built. Never claim something is tested if it only ran against a stand-in.
