@@ -1,0 +1,207 @@
+{
+  "product": {
+    "title": "The Shop Shirt in Soil Chipped Canvas",
+    "brand": "Taylor Stitch",
+    "category": "shirt",
+    "fit_type": null,
+    "fabric": [],
+    "stretch_class": null,
+    "pre_shrunk": "unknown",
+    "pre_shrunk_evidence": null,
+    "size_system": "US",
+    "chart_type": "garment",
+    "chart_type_evidence": "Garment Size Chart",
+    "unit": "in",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "36 – XS",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 40.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 16.5,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 17.25,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 33.0,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 27.75,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "38 – S",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 42.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 17.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 18.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 33.75,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 28.5,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "40 – M",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 44.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 17.5,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 18.75,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 34.5,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 29.25,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "42 – L",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 46.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 18.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 19.5,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 35.5,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 30.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "44 – XL",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 49.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 18.5,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 20.5,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 36.5,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 30.75,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "46 – XXL",
+        "measurements": [
+          {
+            "label": "Chest",
+            "value_min": 52.0,
+            "value_max": null
+          },
+          {
+            "label": "Neck",
+            "value_min": 19.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder",
+            "value_min": 21.5,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve*",
+            "value_min": 37.125,
+            "value_max": null
+          },
+          {
+            "label": "Length**",
+            "value_min": 31.75,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": []
+  },
+  "reviews": {
+    "reviews_read": 0,
+    "zone_signals": [],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 0
+  }
+}

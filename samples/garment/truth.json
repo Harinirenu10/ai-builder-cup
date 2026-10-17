@@ -1,0 +1,41 @@
+{
+ "note": "SIMULATED photos drawn by fitcore.garment.synthetic; the numbers are the true full-circumference or length values in cm",
+ "category": "shirt",
+ "sizes": {
+  "S": {
+   "chest": 108,
+   "waist": 104,
+   "shoulder_width": 44,
+   "sleeve_length": 60,
+   "garment_length": 72
+  },
+  "M": {
+   "chest": 114,
+   "waist": 110,
+   "shoulder_width": 46,
+   "sleeve_length": 61.5,
+   "garment_length": 74
+  },
+  "L": {
+   "chest": 120,
+   "waist": 116,
+   "shoulder_width": 48,
+   "sleeve_length": 63,
+   "garment_length": 76
+  },
+  "XL": {
+   "chest": 126,
+   "waist": 122,
+   "shoulder_width": 50,
+   "sleeve_length": 64.5,
+   "garment_length": 78
+  },
+  "XL_mislabeled": {
+   "chest": 119,
+   "waist": 122,
+   "shoulder_width": 50,
+   "sleeve_length": 64.5,
+   "garment_length": 78
+  }
+ }
+}

@@ -1,0 +1,82 @@
+# Handoff: state of the build (written 2026-10-17)
+
+Prototype deadline: Oct 18. Everything below is about what is **not done** or **not verified**. What works is in each folder's README. All tests are offline and pass (at the commit after `683f032`, with the returns work): `packages/fitcore` 375, `services/api` 150, `services/reader` 55.
+
+## Run the tests
+```
+pip install -e packages/fitcore && pip install fastapi httpx pytest playwright pillow pyjwt google-auth uvicorn python-multipart
+python -m playwright install chromium webkit      # browser tests skip what is missing
+cd web && npm install && cd ..                    # needed by the widget e2e test (it builds the consent popup)
+python -m pytest packages/fitcore/tests services/api/tests services/reader/tests
+```
+The reader and widget tests drive real browsers and take about 3 minutes in total.
+
+## What exists
+- `packages/fitcore`: fit engine, reviews, tailor card, LLM wrapper, reader normalisation, calibration CLI.
+- `services/api`: `/v1/fit`, `/v1/biz/verdict`, `/v1/tailor-card`, business fit query, consent, gifts, orders with a fit guarantee, nudge events, returns routing, returns desk endpoints and KPIs. See its README.
+- `packages/fitcore/fitcore/returns`: deterministic return routing (4 rules, decision log) and the neutral case summary with language guardrails.
+- `services/reader`: `/read`, `/read-image`, CLI, five sample pages. See its README.
+- `web`: consent popup `/app/connect`, widget `web/widget`, static store `web/store` (now with the bracketing nudge in the bag, a simulated checkout and a returns form), returns desk at `/biz/returns`. The rest of the React app (`/app`, `/biz`) is still the original scaffold with hard-coded sample data.
+- `seed/returns_demo.py`: 4 simulated returns (one per routing branch) for the desk demo; Prompt 12 reuses them.
+- `packages/fitcore/fitcore/garment`: garment photo measurement (A4 sheet to scale and perspective, outline, landmarks from Gemini or a file, cm per zone, overlay image), a synthetic photo generator, and a CLI. `samples/garment/` holds 5 simulated photos.
+- `packages/fitcore/fitcore/sim.py`, `population.py`, `sim_memo.py` + `services/api/apilib/simulate.py` + `/biz/simulate`: the pre-production return simulation (size mix, below/ideal/above shares per zone per size, no-good-size share, regrade search, pro-model memo, permanent banner). **Its population is a statistical stand-in with invented numbers, not SMPL** (see below).
+- `packages/fitcore/fitcore/chart` + `services/api/apilib/charts.py` + `/biz/charts`: the size chart studio (measure per photo, grading check, reviews beside the chart, publish, export, "Use on store"). The mock store's product pages show a live chart when the seller has put one on the store.
+- Simulated data is labelled as such: `samples/*.json`, the Demo Threads Co. pages. Public pages saved in `samples/products/` (Taylor Stitch, Vistaprint) are third-party content, test use only: delete them if that is a problem.
+
+## Must do before a public deploy
+- [ ] **Firebase Hosting rewrite points at the wrong service name.** `firebase.json` sends `/api/**` to Cloud Run service `api`, but `make deploy-api` deploys `fit-api`. Make them match.
+- [ ] **Set `CONSENT_JWT_SECRET`** on the API service (random, 32+ bytes). Without it the API refuses to issue tokens. Storing it in Secret Manager adds a cloud service: get approval first (CLAUDE.md).
+- [ ] **Never set `AUTH_MODE=dev`** in the cloud. It accepts `Bearer dev:<anything>` as a signed-in user. Also leave `GEMINI_API_KEY`, `OLLAMA_*` and `LLM_BACKEND` unset there, so Gemini goes through Vertex.
+- [ ] **Lock down the older endpoints.** `/v1/fit`, `/v1/biz/verdict` and `/v1/tailor-card` take the twin in the request body with no authentication, and `explain_text=true` calls an LLM. Add auth or remove them before they are public. `/v1/biz/verdict` is also meant to be business-facing and should not receive measurements at all: it should look the twin up server-side like `/v1/fit-query` does.
+- [ ] **Protect the reader.** `/read` and `/read-image` are open: anyone can trigger Chromium and LLM calls. Require auth (Cloud Run IAM or a key) and a rate limit.
+- [ ] **Reader memory.** `make deploy-reader` uses the default memory; Chromium needs about 2 GiB. Add `--memory=2Gi`.
+- [ ] **Merchant onboarding does not exist.** Merchants (`merchants/{id}`: name, `publishable_key`, `allowed_origins`) can only be created by hand in Firestore or with `services/api/seed.py` locally. Register the demo store's real origin, otherwise the popup and the API refuse it.
+- [ ] **Twins.** The fit query reads `twins/{uid}` = `{owner_id, measurements: {zones: {...}}}`. Nothing creates real twins yet (geometry service not built). For the demo, write a simulated twin (see `seed.py`), and say it is simulated.
+- [ ] **Check Gemini model IDs on Vertex.** `.env` holds Developer API IDs (`gemini-3.8-flash`, `gemini-3.1-pro-preview`, ...). Confirm they exist in the Vertex region/location `global`. Never use gemini-1.x or gemini-2.x.
+- [ ] **Rotate the Gemini API key.** It appeared in a chat transcript. `.env` is gitignored and was never committed.
+- [ ] Add the deployed app and store origins to `API_CORS_ORIGINS` (app) and to the merchant's `allowed_origins` (store).
+- [ ] **Returns desk access.** Staff are the uids in `merchants/{id}.staff_uids`; set it (and `return_policy`, `return_window_days`) on the real merchant document. Nothing else grants desk access. There is no UI for these settings.
+- [ ] **`POST /v1/orders`, `/v1/returns` and `/v1/store-events` are open to anyone holding the merchant key** (plus the origin check in browsers). A return is identified only by the unguessable order id from checkout. In production the store should call them from its own backend after authenticating the shopper.
+- [ ] **The return simulation does not use SMPL yet.** The brief says sample SMPL betas in `services/geometry` and measure them with the Prompt 1 loops; the geometry service is a scaffold, `smplx` and `mediapipe` are not installed, and only `SMPL_FEMALE.pkl` is present (no male model). Instead `population.generate_standin` draws 2,000 bodies per gender from a correlated normal whose means, spreads and correlations I chose by hand (`config/sim.yaml`). **Every simulation result is only as real as those invented numbers.** The page banner says "stand-in, not the SMPL shape space" so it cannot be mistaken for SMPL. To finish: build the SMPL measurement loops, sample and measure the betas, save them as `Population(source="smpl")` parquet at `POPULATION_PATH`, then calibrate against consented, anonymized twins.
+- [ ] **Garment measurement has only been tried on synthetic photos.** Accuracy there is 0.1 to 0.3 cm typical, about 2.5 cm worst. The Gemini landmark step was checked on a handful of synthetic photos (4 live calls, 2 recorded: within 1.4 cm). **No real photograph has been measured.** Try real flat-lays before relying on it, and tune `config/grading.yaml` (`jump_tolerance_cm`, step ranges) with real sizes.
+- [ ] **API service resources.** Measuring a photo needs a few hundred MB, and the studio measures four at once: give the API Cloud Run service at least 1 GiB (it also now ships OpenCV, `opencv-python-headless`; the Docker image was not rebuilt or run).
+- [ ] **Unboxing measurements are simulated.** `unboxing_measurements/{id}` is only written by `seed/returns_demo.py` and tests; nothing produces one from a photo (garment photo measurement is not built). Overlay images are static SVGs in `web/store/img/unboxing/`; real ones need Cloud Storage (ask first) and signed URLs.
+
+## Not tested (written, but never run for real)
+- Vertex path of `llm.py` (`genai.Client(vertexai=True, ...)`). All live runs used the Developer API key. The Ollama path ran live against the relay.
+- Firebase Auth: the popup's "Sign in with Google" and server-side ID-token verification (`google.oauth2.id_token.verify_firebase_token`). Tests use the dev stand-in only.
+- Firestore: `FirestoreStore` (API) and `FirestoreStore` (reader cache) are untested. `firestore.rules` changes (store consents are server-written, `fit_queries` and `gifts` server-only) were never run in the emulator.
+- Docker builds and Cloud Run for api and reader. The reader image is `playwright/python:v1.49.0-jammy` and `requirements.txt` pins `playwright==1.49.0`, but tests ran on Playwright 1.60 locally.
+- Real Safari (Mac, iPhone). The widget was tested in Chromium and WebKit only. Test pop-up blocking on iOS especially.
+- The reader against live sites, apart from one visit each to Taylor Stitch, Vistaprint, Meesho (403, reported `blocked`) and Orvis (404). `robots.txt` is **not** checked. Decide whether that is acceptable.
+- Cloud Tasks, the ADK planner agent, `make deploy-web`, and the hosted `dist/store` + `dist/widget` copy (`npm run build` runs it locally; hosting itself is untested).
+- Consent revocation through a real "My twin" screen (the endpoints are tested; the screen does not exist).
+- Returns desk with Firebase sign-in (tests use the dev stand-in), and the desk's Firestore access: `desk_merchant` reads every merchant document to find the user's merchant, and KPIs read all of a merchant's orders, returns and events. Fine for a demo; add queries and indexes before real volume.
+- The simulation population on Cloud Storage: `Population.save/load` with a `gs://` path (needs `google-cloud-storage`, which is not in the API requirements) was never run; local parquet works and is tested. The memo has run live only on Gemini pro through the Developer API key (one recorded call, 37 s); not on Vertex. The simulation page ran in Chromium and WebKit against a stand-in memo writer that waits 2 s.
+- The size chart studio against Firebase sign-in and Firestore (`charts`, and reading `products/{sha256(url)}` that the reader writes: the API and the reader must share that collection and its shape; locally they use different stores, so the demo seeds a copy). The studio ran in Chromium and WebKit with a stand-in measurer (landmarks taken from the synthetic generator), and once against live Gemini on four synthetic photos (15 s to measure, 22 s to publish).
+- The case summary has run live only on Gemini (Developer API key, one recorded call). It has not run on Vertex or on Gemma. The template fallback is what runs when no model is configured.
+
+## Not built
+- "My twin" screen (list and revoke store consents; endpoints `GET /v1/consents`, `POST /v1/consents/{id}/revoke` are ready). Gift screens (`/app/gift/{id}`).
+- The geometry service (MediaPipe, SMPL fitting), twin capture, 18+ check in the capture flow. (Garment photo measurement now exists, see above; its output is not yet wired to unboxing measurements for returns.)
+- Studio gaps: no way to attach a chart to a real store's catalogue other than the mock store's live-chart hook (a real store would pull `GET /v1/store/charts/{ref}` or the export), no merchant-facing list of products, no photo upload progress for large files, and `back_rise` cannot be measured from a front flat-lay.
+- Try-and-keep checkout (the bag allows two sizes of one item and the nudge works; there is no keep/return step after delivery).
+- Returns: shopper-facing status page and emails, actually issuing refunds or shipping exchanges (checkout is a simulation with no payment), a merchant settings screen, and anything that consumes the `model_miss` and `seller_label_error` flags beyond the desk's count (no evaluation export, no seller-facing SKU workflow).
+- Business console data (`/biz` is scaffold).
+- Tuning: every `# TUNE` number in `packages/fitcore/fitcore/config/*.yaml` is a starting guess. `python -m fitcore.fit.calibrate` proposes values from size charts that list body and garment numbers; none were run on real data.
+
+## Known limits
+- Rate limit is in memory per instance (several Cloud Run instances each count separately). CORS merchant origins are cached 30 s.
+- Reader: reviews behind a "Reviews" tab click are not opened. The reader treats blocked results as cached for 7 days, so a site is not retried for a week.
+- The consent token sits in the store page's `localStorage`. Revocation works server-side, but the token itself stays readable by that page's scripts.
+- `alteration_hint` in the fit query contains a garment change in cm (for example "sleeves may need 2 cm shortening").
+- Simulation definitions: a "good size" is a size where every hard-to-alter zone is ideal both as bought and after the first wash (easy zones can be altered, so they do not count). The below/ideal/above shares per size are among the bodies that size is the best size for. The simulation uses the fit engine's current numbers (`# TUNE` values) and ignores personal ease offsets, review adjustments and poses. The regrade is a coordinate search (up to 2 cm per zone per size, never making a size smaller than the one below), not a global optimum, and its suggestions are for the sample population only. The memo check guards the numbers and the wording; it cannot judge whether a claim in a sentence is sensible. The memo takes 35 to 45 s on the pro model, so it is a separate call from the statistics.
+- Garment photos: the garment must contrast with the surface and the A4 sheet must be plain white and fully in view (a white garment on a white sheet, a patterned surface, or a folded garment will fail or give poor values; the studio reports `no_a4`, `no_garment` or low confidence). Sleeves are measured as a straight line from shoulder tip to cuff, so a sleeve laid with a bend reads short. Landmarks off the garment are dropped and the zone is left empty, never guessed.
+- The grading check allows `jump_tolerance_cm` (1 cm) outside a step's range before flagging a jump, because measured values carry about 1 cm of noise; a value smaller than the previous size is flagged at any size. With noise, a real 1 cm decrease can show up as "grows only 0.1 cm" (seen in the live run).
+- Guarantee threshold is one config value, `guarantee.min_confidence` = 0.7 (lowered from 0.75). The fit query's `guarantee_eligible` also needs every hard zone to fit; an order's guarantee is the simpler rule (size bought equals recommended size and confidence >= 0.7). The widget still words confidence as high from 0.75 (display only).
+- Return routing cannot compare a measured garment with a **body-size chart** (the kurta and blouse in the demo store), so a guaranteed sizing return on those goes to a person. Guaranteed sizing returns with no unboxing measurement also go to a person.
+- The nudge appears only with consent and when the recommended size is one of the sizes in the bag; "shown" is logged once per cart view per product.
+- Extraction quirks seen: Gemini called the "Utility Overshirt" a shirt (not a jacket) and the polo a shirt; fixtures record this.
+
+## Env vars
+`GOOGLE_CLOUD_PROJECT`, `GEMINI_PRO_MODEL`, `GEMINI_FLASH_MODEL`, `GEMINI_IMAGE_MODEL`, `VTO_MODEL`; dev only: `LLM_BACKEND`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `GEMINI_API_KEY`, `GEMINI_API_MAX_CALLS`. API: `CONSENT_JWT_SECRET`, `AUTH_MODE`, `API_STORE`, `API_CORS_ORIGINS`, `RATE_LIMIT_PER_MIN`. Reader: `READER_CACHE`, `READER_CACHE_DIR`, `READER_ALLOW_PRIVATE` and `READER_OFFLINE` (tests only). Web build: `VITE_API_URL` (default `/api`), `VITE_AUTH_MODE` (`dev` only locally), `VITE_FIREBASE_*`. Template: `.env.example`.

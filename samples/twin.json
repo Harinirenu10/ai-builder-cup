@@ -1,0 +1,55 @@
+{
+  "_note": "SIMULATED sample twin measurements, not a real person",
+  "zones": {
+    "chest": {
+      "value_cm": 96,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "waist": {
+      "value_cm": 82,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "hip": {
+      "value_cm": 98,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "shoulder_width": {
+      "value_cm": 42,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "sleeve_length": {
+      "value_cm": 58,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "torso_length": {
+      "value_cm": 46,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "thigh": {
+      "value_cm": 56,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "inseam": {
+      "value_cm": 78,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "back_rise": {
+      "value_cm": 26,
+      "confidence": 0.9,
+      "source": "simulated"
+    },
+    "neck": {
+      "value_cm": 38,
+      "confidence": 0.9,
+      "source": "simulated"
+    }
+  }
+}

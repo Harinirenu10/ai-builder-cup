@@ -51,11 +51,14 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && resource.data.sender_id == request.auth.uid;
     }
 
-    // 6. Consents: User 18+ and photo retention consent records
+    // 6. Consents: two kinds share the collection.
+    //    - capture consents (18+, photo retention) carry user_id and are written by the owner;
+    //    - store consents (scope "fit_verdict") carry uid and merchant_id. The owner can read them (My twin lists them),
+    //      but they are created and revoked only by the API, which issues and checks the signed consent token.
     match /consents/{consentId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('user_id', '') == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.get('scope', '') != 'fit_verdict' && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.get('scope', '') != 'fit_verdict' && resource.data.get('user_id', '') == request.auth.uid;
     }
 
     // 7. Public/Client-readable catalog collections
@@ -91,6 +94,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /sims/{simId} {
+      allow read, write: if false;
+    }
+    // Unboxing measurements (garment values and an overlay image, never body data): server only.
+    match /unboxing_measurements/{id} {
+      allow read, write: if false;
+    }
+    // Store-facing logs and gift requests: server only. fit_queries holds no body data and no user id.
+    match /fit_queries/{queryId} {
+      allow read, write: if false;
+    }
+    match /gifts/{giftId} {
       allow read, write: if false;
     }
   }

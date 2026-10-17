@@ -1,0 +1,12 @@
+{
+  "poses": {
+    "seated": {
+      "minutes": 120,
+      "delta_cm": {
+        "thigh": 3.0,
+        "hip": 2.0,
+        "waist": 2.5
+      }
+    }
+  }
+}

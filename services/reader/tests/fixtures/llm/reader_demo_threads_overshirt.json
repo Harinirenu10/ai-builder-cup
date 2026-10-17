@@ -1,0 +1,172 @@
+{
+  "product": {
+    "title": "Field Canvas Utility Overshirt",
+    "brand": "Demo Threads Co.",
+    "category": "shirt",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 100.0
+      }
+    ],
+    "stretch_class": "none",
+    "pre_shrunk": "unknown",
+    "pre_shrunk_evidence": null,
+    "size_system": "letter",
+    "chart_type": "garment",
+    "chart_type_evidence": "Size guide: garment measurements",
+    "unit": "cm",
+    "circumference_basis": "flat",
+    "sizes": [
+      {
+        "label": "S",
+        "measurements": [
+          {
+            "label": "Chest (flat, across) (cm)",
+            "value_min": 53.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 64.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 72.0,
+            "value_max": null
+          },
+          {
+            "label": "Across shoulder (cm)",
+            "value_min": 47.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "M",
+        "measurements": [
+          {
+            "label": "Chest (flat, across) (cm)",
+            "value_min": 56.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 65.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 74.0,
+            "value_max": null
+          },
+          {
+            "label": "Across shoulder (cm)",
+            "value_min": 49.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "L",
+        "measurements": [
+          {
+            "label": "Chest (flat, across) (cm)",
+            "value_min": 59.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 66.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 76.0,
+            "value_max": null
+          },
+          {
+            "label": "Across shoulder (cm)",
+            "value_min": 51.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "XL",
+        "measurements": [
+          {
+            "label": "Chest (flat, across) (cm)",
+            "value_min": 62.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 67.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 78.0,
+            "value_max": null
+          },
+          {
+            "label": "Across shoulder (cm)",
+            "value_min": 53.0,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "https://demo-threads.example/img/overshirt-front.jpg",
+      "https://demo-threads.example/img/overshirt-back.jpg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [
+      {
+        "zone": "sleeve_length",
+        "direction": "short",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": [
+          {
+            "height_cm": null,
+            "torso": null,
+            "note": "long arms"
+          },
+          {
+            "height_cm": null,
+            "torso": null,
+            "note": null
+          }
+        ]
+      },
+      {
+        "zone": "chest",
+        "direction": "tight",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": [
+          {
+            "height_cm": null,
+            "torso": null,
+            "note": "tight with a hoodie underneath"
+          },
+          {
+            "height_cm": null,
+            "torso": null,
+            "note": "tight over a sweater, ordered L"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 1,
+    "sheerness_mentions": 0
+  }
+}

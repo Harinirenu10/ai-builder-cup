@@ -1,0 +1,156 @@
+{
+  "product": {
+    "title": "Jaipur Block-Print Rayon Kurta",
+    "brand": "Demo Threads Co.",
+    "category": "kurta",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "rayon",
+        "percent": 100.0
+      }
+    ],
+    "stretch_class": null,
+    "pre_shrunk": "false",
+    "pre_shrunk_evidence": "Not pre-shrunk: may shrink up to 3% on the first wash",
+    "size_system": "letter",
+    "chart_type": "body",
+    "chart_type_evidence": "Size guide: body measurements",
+    "unit": "in",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "S",
+        "measurements": [
+          {
+            "label": "To fit bust (in)",
+            "value_min": 34.0,
+            "value_max": 35.0
+          },
+          {
+            "label": "To fit waist (in)",
+            "value_min": 28.0,
+            "value_max": 29.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 36.0,
+            "value_max": 37.0
+          }
+        ]
+      },
+      {
+        "label": "M",
+        "measurements": [
+          {
+            "label": "To fit bust (in)",
+            "value_min": 36.0,
+            "value_max": 37.0
+          },
+          {
+            "label": "To fit waist (in)",
+            "value_min": 30.0,
+            "value_max": 31.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 38.0,
+            "value_max": 39.0
+          }
+        ]
+      },
+      {
+        "label": "L",
+        "measurements": [
+          {
+            "label": "To fit bust (in)",
+            "value_min": 38.0,
+            "value_max": 39.0
+          },
+          {
+            "label": "To fit waist (in)",
+            "value_min": 32.0,
+            "value_max": 33.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 40.0,
+            "value_max": 41.0
+          }
+        ]
+      },
+      {
+        "label": "XL",
+        "measurements": [
+          {
+            "label": "To fit bust (in)",
+            "value_min": 40.0,
+            "value_max": 41.0
+          },
+          {
+            "label": "To fit waist (in)",
+            "value_min": 34.0,
+            "value_max": 35.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 42.0,
+            "value_max": 43.0
+          }
+        ]
+      },
+      {
+        "label": "XXL",
+        "measurements": [
+          {
+            "label": "To fit bust (in)",
+            "value_min": 42.0,
+            "value_max": 43.0
+          },
+          {
+            "label": "To fit waist (in)",
+            "value_min": 36.0,
+            "value_max": 37.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 44.0,
+            "value_max": 45.0
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "img/kurta-front.svg",
+      "img/kurta-back.svg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 6,
+    "zone_signals": [
+      {
+        "zone": "chest",
+        "direction": "runs_small",
+        "strength": 0.33,
+        "mention_count": 2,
+        "reviewer_context": []
+      },
+      {
+        "zone": "garment_length",
+        "direction": "short",
+        "strength": 0.17,
+        "mention_count": 1,
+        "reviewer_context": [
+          {
+            "height_cm": null,
+            "torso": "long",
+            "note": "sits above my hip"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 2,
+    "color_mismatch_mentions": 1,
+    "sheerness_mentions": 0
+  }
+}

@@ -1,0 +1,67 @@
+# Return simulation. Every number is a starting value to tune.
+#
+# The stand-in population below is INVENTED: plausible-looking body-measurement distributions chosen by hand, not survey
+# data and not the SMPL shape space. It exists so the simulation can run before the SMPL sampler (geometry service) exists.
+# Replace it with the SMPL population, then calibrate with consented, anonymized twins.
+
+population:
+  per_gender: 2000          # TUNE  bodies per gender model
+  seed: 20261017            # fixed so every run uses the same bodies
+  clip_sd: 3.0              # TUNE  no body further than this many standard deviations from its mean
+  standin:
+    # name: [mean, standard deviation] in cm
+    female:
+      height: [162.0, 6.3]
+      chest: [92.0, 8.5]
+      waist: [77.0, 9.5]
+      hip: [99.0, 8.5]
+      shoulder_width: [38.5, 2.2]
+      sleeve_length: [57.0, 3.0]
+      torso_length: [40.0, 2.4]
+      thigh: [56.0, 5.5]
+      inseam: [76.0, 4.2]
+      neck: [33.5, 2.0]
+      back_rise: [26.0, 2.0]
+      upper_back: [35.0, 2.0]
+    male:
+      height: [174.5, 6.8]
+      chest: [100.0, 8.5]
+      waist: [89.0, 10.0]
+      hip: [100.0, 7.5]
+      shoulder_width: [44.5, 2.5]
+      sleeve_length: [62.0, 3.2]
+      torso_length: [45.0, 2.6]
+      thigh: [57.0, 5.0]
+      inseam: [81.0, 4.3]
+      neck: [38.0, 2.0]
+      back_rise: [28.0, 2.0]
+      upper_back: [40.0, 2.4]
+  correlation:              # TUNE  between groups of measurements (the matrix is repaired if it is not valid)
+    girth: [chest, waist, hip, thigh, neck]
+    length: [height, sleeve_length, torso_length, inseam, back_rise]
+    width: [shoulder_width, upper_back]
+    within_girth: 0.70
+    within_length: 0.55
+    within_width: 0.70
+    height_with_length: 0.70
+    girth_length: 0.20
+    girth_width: 0.45
+    length_width: 0.35
+    height_width: 0.50
+
+# Reweight the population to a target market: a height distribution per gender and a gender mix.
+target:
+  height_cm:
+    female: [160.0, 6.5]    # TUNE  [mean, sd]
+    male: [172.0, 7.0]
+  gender_mix:
+    female: 0.5
+    male: 0.5
+  bin_cm: 2.0
+  max_weight: 8.0           # a body never counts more than this many times its share
+
+regrade:
+  grid_cm: 2.0              # TUNE  a zone of a size may move up to this far either way
+  step_cm: 1.0
+  passes: 3
+  min_gain: 0.0005          # a change must raise coverage by at least this share to be suggested

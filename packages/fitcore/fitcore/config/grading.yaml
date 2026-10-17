@@ -1,0 +1,34 @@
+# Grading: how much each zone is expected to grow from one size to the next (cm, full circumference or length).
+# [min, max] per step. Every number is a starting value to tune.
+
+# Measured values are not exact (photos give about +-1 cm), so a step may sit this far outside its range before it is flagged as a jump.
+# A value smaller than the previous size is always flagged.
+jump_tolerance_cm: 1.0           # TUNE
+
+default_step_cm:
+  chest: [3.0, 7.0]            # TUNE
+  waist: [3.0, 7.0]            # TUNE
+  hip: [3.0, 7.0]              # TUNE
+  shoulder_width: [0.5, 2.2]   # TUNE
+  sleeve_length: [0.3, 2.2]    # TUNE
+  garment_length: [0.8, 3.5]   # TUNE
+  thigh: [1.0, 4.0]            # TUNE
+  inseam: [0.0, 2.0]           # TUNE  inseams are often the same across sizes
+  neck: [0.5, 1.8]             # TUNE
+  back_rise: [0.3, 1.5]        # TUNE
+  upper_back: [0.8, 2.2]       # TUNE
+
+# Categories that grade differently.
+overrides:
+  kurta:
+    garment_length: [0.0, 4.5]   # TUNE
+  dress:
+    garment_length: [0.0, 4.5]   # TUNE
+  trousers:
+    waist: [2.0, 6.5]            # TUNE
+    hip: [2.0, 6.5]              # TUNE
+  jeans:
+    waist: [2.0, 6.5]            # TUNE
+    hip: [2.0, 6.5]              # TUNE
+  jacket:
+    sleeve_length: [0.3, 2.5]    # TUNE

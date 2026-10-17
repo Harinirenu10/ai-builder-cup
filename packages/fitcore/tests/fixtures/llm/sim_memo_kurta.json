@@ -1,0 +1,156 @@
+{
+ "facts": {
+  "product": {
+   "category": "kurta",
+   "fit": "regular",
+   "chart_type": "garment",
+   "sizes": [
+    "S",
+    "M",
+    "L",
+    "XL"
+   ]
+  },
+  "population": {
+   "bodies": 4000,
+   "source": "stand-in",
+   "synthetic": true,
+   "reweighted_to_a_target_market": false
+  },
+  "best_size_share_percent": {
+   "S": 6.9,
+   "M": 12.4,
+   "L": 16.4,
+   "XL": 12.9
+  },
+  "no_size_recommended_percent": 51.5,
+  "no_good_size_percent": 72.9,
+  "covered_percent": 27.1,
+  "zones_outside_the_range": [
+   {
+    "size": "S",
+    "zone": "hip",
+    "problem": "tight",
+    "percent_of_that_size_buyers": 75.9
+   },
+   {
+    "size": "S",
+    "zone": "sleeve length",
+    "problem": "short",
+    "percent_of_that_size_buyers": 72.6
+   },
+   {
+    "size": "XL",
+    "zone": "sleeve length",
+    "problem": "short",
+    "percent_of_that_size_buyers": 64.0
+   },
+   {
+    "size": "M",
+    "zone": "sleeve length",
+    "problem": "short",
+    "percent_of_that_size_buyers": 63.2
+   },
+   {
+    "size": "L",
+    "zone": "sleeve length",
+    "problem": "short",
+    "percent_of_that_size_buyers": 62.9
+   },
+   {
+    "size": "M",
+    "zone": "hip",
+    "problem": "tight",
+    "percent_of_that_size_buyers": 61.0
+   },
+   {
+    "size": "L",
+    "zone": "hip",
+    "problem": "tight",
+    "percent_of_that_size_buyers": 43.0
+   },
+   {
+    "size": "L",
+    "zone": "shoulder width",
+    "problem": "loose",
+    "percent_of_that_size_buyers": 37.7
+   }
+  ],
+  "regrade": {
+   "covered_percent_before": 27.1,
+   "covered_percent_after": 36.5,
+   "changes": [
+    {
+     "size": "S",
+     "zone": "shoulder width",
+     "from_cm": 42.5,
+     "to_cm": 40.5,
+     "change_cm": -2.0,
+     "covered_percent_gained_by_this_change_alone": 3.0
+    },
+    {
+     "size": "XL",
+     "zone": "shoulder width",
+     "from_cm": 47.0,
+     "to_cm": 48.0,
+     "change_cm": 1.0,
+     "covered_percent_gained_by_this_change_alone": 1.3
+    },
+    {
+     "size": "M",
+     "zone": "shoulder width",
+     "from_cm": 44.0,
+     "to_cm": 43.0,
+     "change_cm": -1.0,
+     "covered_percent_gained_by_this_change_alone": 1.2
+    },
+    {
+     "size": "S",
+     "zone": "chest",
+     "from_cm": 104.0,
+     "to_cm": 106.0,
+     "change_cm": 2.0,
+     "covered_percent_gained_by_this_change_alone": 0.7
+    },
+    {
+     "size": "M",
+     "zone": "chest",
+     "from_cm": 110.0,
+     "to_cm": 112.0,
+     "change_cm": 2.0,
+     "covered_percent_gained_by_this_change_alone": 0.5
+    },
+    {
+     "size": "XL",
+     "zone": "chest",
+     "from_cm": 122.0,
+     "to_cm": 120.0,
+     "change_cm": -2.0,
+     "covered_percent_gained_by_this_change_alone": 0.2
+    }
+   ]
+  }
+ },
+ "memo": {
+  "headline": "Low Coverage for Regular Fit Kurta Requires Immediate Chart Adjustment",
+  "sections": [
+   {
+    "heading": "Current Chart Coverage",
+    "body": "The current garment size chart for the regular fit kurta covers 27.1% of the population. A large portion of the market is missed, with no size recommended for 51.5% of the population, and 72.9% of the population finding no good size. When a fit works, the best size distribution is 6.9% for S, 12.4% for M, 16.4% for L, and 12.9% for XL."
+   },
+   {
+    "heading": "Where the Chart Loses Buyers",
+    "body": "The chart loses many buyers because the garment is tight at the hip and short in the sleeve length. The hip is tight for 75.9% of size S buyers, 61.0% of size M buyers, and 43.0% of size L buyers. The sleeve length is short for 72.6% of size S buyers, 63.2% of size M buyers, 62.9% of size L buyers, and 64.0% of size XL buyers. Additionally, the shoulder width is loose for 37.7% of size L buyers."
+   },
+   {
+    "heading": "Recommended Grading Adjustments",
+    "body": "We can increase coverage from 27.1% to 36.5% by adjusting specific garment measurements. For the shoulder width, adjust size S from 42.5 cm to 40.5 cm (a change of -2.0 cm) to gain 3.0% coverage alone. Adjust size M shoulder width from 44.0 cm to 43.0 cm (a change of -1.0 cm) to gain 1.2%, and adjust size XL shoulder width from 47.0 cm to 48.0 cm (a change of 1.0 cm) to gain 1.3%. For the chest, adjust size S from 104.0 cm to 106.0 cm (a change of 2.0 cm) to gain 0.7%, adjust size M from 110.0 cm to 112.0 cm (a change of 2.0 cm) to gain 0.5%, and adjust size XL from 122.0 cm to 120.0 cm (a change of -2.0 cm) to gain 0.2%."
+   },
+   {
+    "heading": "Caveat",
+    "body": "Synthetic population from a statistical stand-in with invented body-measurement distributions, not the SMPL shape space. Calibrate with consented, anonymized twins before relying on it."
+   }
+  ],
+  "source": "model"
+ }
+}

@@ -1,0 +1,27 @@
+# Review signals to cm adjustments. Every number is a starting value to tune.
+# A positive adjustment means the garment runs smaller than its chart, so ease is reduced by that amount.
+
+strength_cm:
+  slight: 0.5     # TUNE
+  moderate: 1.5   # TUNE
+  strong: 3.0     # TUNE
+
+max_adjustment_cm: 4.0   # TUNE  cap per zone after summing signals
+
+# Signals with a context apply only when the twin matches it.
+contexts:
+  long_torso:
+    body_zone: torso_length
+    op: ">="
+    threshold_cm: 50.0   # TUNE
+  short_torso:
+    body_zone: torso_length
+    op: "<="
+    threshold_cm: 42.0   # TUNE
+
+# Converting reader ReviewSignals (strength 0-1, mention counts) into engine signals.
+adapter:
+  min_mentions: 2          # TUNE  ignore a signal said by fewer reviewers
+  moderate_from: 0.34      # TUNE  strength at which a signal counts as moderate
+  strong_from: 0.67        # TUNE  strength at which a signal counts as strong
+  context_share: 0.5       # TUNE  share of reviewer_context entries that must agree to apply a torso context

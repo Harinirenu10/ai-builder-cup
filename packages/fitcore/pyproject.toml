@@ -12,9 +12,14 @@ dependencies = [
     "pydantic>=2.6.0",
     "google-genai>=0.1.1",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "Pillow>=10.0",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
 ]
 
 [project.optional-dependencies]
+population = ["pyarrow>=15.0"]   # parquet cache of the simulation population
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -23,3 +28,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["fitcore*"]
+
+[tool.setuptools.package-data]
+fitcore = ["config/*.yaml"]

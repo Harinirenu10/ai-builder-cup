@@ -1,0 +1,48 @@
+# Zones, hard/easy classification and scoring weights. Every number is a starting value to tune.
+
+zones_by_category:
+  tshirt:   [chest, shoulder_width, garment_length]
+  shirt:    [chest, waist, shoulder_width, sleeve_length, garment_length]
+  kurta:    [chest, waist, hip, shoulder_width, sleeve_length, garment_length]
+  dress:    [chest, waist, hip, shoulder_width, garment_length]
+  blouse:   [chest, waist, shoulder_width, sleeve_length, garment_length]
+  trousers: [waist, hip, thigh, inseam, back_rise]
+  jeans:    [waist, hip, thigh, inseam, back_rise]
+  jacket:   [chest, shoulder_width, sleeve_length, garment_length]
+
+# Hard to alter, per category.
+hard_zones:
+  tshirt:   [shoulder_width, chest]
+  shirt:    [shoulder_width, chest]
+  kurta:    [shoulder_width, chest]
+  blouse:   [shoulder_width, chest]
+  jacket:   [shoulder_width, chest]
+  dress:    [chest, hip]
+  trousers: [hip, back_rise]
+  jeans:    [hip, back_rise]
+
+# Easy to alter (any category). Zones in neither list (thigh, neck, ...) count as normal weight and are never altered.
+easy_zones: [sleeve_length, garment_length, waist, inseam]
+
+# Garment zones that are compared with a differently named body zone.
+body_ref:
+  garment_length: torso_length
+
+# Zones measured along the body (length shrinkage, no stretch allowance, short/long verdicts).
+length_zones: [sleeve_length, garment_length, inseam, back_rise, torso_length]
+
+scoring:
+  hard_weight: 3            # TUNE
+  easy_weight: 1            # TUNE
+  other_weight: 1           # TUNE
+  base_penalty: 1.0         # TUNE  penalty for any non-ideal verdict
+  per_cm_penalty: 0.5       # TUNE  extra penalty per cm outside the range
+  penalty_cap: 8.0          # TUNE  max penalty per zone before weighting
+  score_halflife: 10.0      # TUNE  total penalty at which score is 50
+  long_pose_minutes: 30     # TUNE  strain held longer than this counts like tight
+  short_pose_factor: 0.5    # TUNE  strain held for less time counts this fraction of tight
+  confidence_gap_full: 20.0 # TUNE  score gap to the next size that gives full gap confidence
+  verdict_epsilon_cm: 0.001 # TUNE  tolerance on range boundaries
+
+guarantee:
+  min_confidence: 0.7    # TUNE  confidence needed for a fit guarantee (orders and the fit query)
