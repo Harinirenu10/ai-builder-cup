@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from apilib.auth import RateLimiter, current_uid, err, get_limiter, issue_consent_token, verify_consent_token, SCOPE
 from apilib.models import (
@@ -48,6 +48,30 @@ def check_origin(merchant: dict[str, Any], origin: str | None, *, required: bool
     allowed = {norm_origin(o) for o in merchant.get("allowed_origins", [])}
     if norm_origin(origin) not in allowed:
         raise err(403, "origin_not_allowed", "This origin is not registered for the merchant.")
+
+
+def enforce_rate_limit(m: dict[str, Any], limiter: RateLimiter) -> None:
+    limit = int(m.get("rate_limit_per_min") or os.environ.get("RATE_LIMIT_PER_MIN", DEFAULT_RATE_PER_MIN))
+    if limiter.check(f"merchant:{m['id']}", limit) is not None:
+        raise err(429, "rate_limited", "Too many requests for this merchant. Try again shortly.")
+
+
+def resolve_consent(store: Store, merchant: dict[str, Any], token: str | None) -> tuple[str | None, str]:
+    """(uid, status) for an optional consent token. Status is ok, none, revoked or invalid; never raises."""
+    if not token:
+        return None, "none"
+    try:
+        claims = verify_consent_token(token)
+    except HTTPException:
+        return None, "invalid"
+    if claims["mid"] != merchant["id"]:
+        return None, "invalid"
+    consent = store.get("consents", claims["cid"])
+    if not consent or consent["merchant_id"] != merchant["id"] or consent["scope"] != SCOPE:
+        return None, "invalid"
+    if consent.get("revoked_at"):
+        return None, "revoked"
+    return consent["uid"], "ok"
 
 
 def product_ref(p: FitQueryProduct) -> str:
@@ -133,10 +157,7 @@ def fit_query(
     """
     m = merchant_by_key(store, x_merchant_key)
     check_origin(m, origin, required=False)
-    limit = int(m.get("rate_limit_per_min") or os.environ.get("RATE_LIMIT_PER_MIN", DEFAULT_RATE_PER_MIN))
-    wait = limiter.check(f"merchant:{m['id']}", limit)
-    if wait is not None:
-        raise err(429, "rate_limited", "Too many requests for this merchant. Try again shortly.") from None
+    enforce_rate_limit(m, limiter)
 
     claims = verify_consent_token(body.consent_token)
     if claims["mid"] != m["id"]:

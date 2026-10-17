@@ -27,6 +27,7 @@
       document.getElementById("chart-close").addEventListener("click", function () { modal.hidden = true; });
       document.addEventListener("keydown", function (e) { if (e.key === "Escape") modal.hidden = true; });
     }
+    applyLiveChart();
     // The fit widget announces its answer; preselect that size so the shopper can add it in one click.
     document.addEventListener("measuredfit:result", function (e) {
       var d = e.detail, sel = document.getElementById("size");
@@ -41,7 +42,11 @@
       var lines = load();
       var line = lines.filter(function (l) { return l.slug === slug && l.size === size; })[0];
       if (line) line.qty = Math.min(5, line.qty + qty);
-      else lines.push({ slug: slug, title: body.getAttribute("data-title"), price: parseFloat(body.getAttribute("data-price")), size: size, qty: qty });
+      else {
+        var slot = document.querySelector("[data-fit-product]"), fit = null;
+        try { fit = slot ? JSON.parse(slot.getAttribute("data-fit-product")) : null; } catch (e) { fit = null; }
+        lines.push({ slug: slug, title: body.getAttribute("data-title"), price: parseFloat(body.getAttribute("data-price")), size: size, qty: qty, fit: fit });
+      }
       save(lines);
       paint();
       var sizes = sizesOf(lines, slug), note = document.getElementById("bag-note");
@@ -49,6 +54,41 @@
         ? "Added size " + size + ". You now have sizes " + sizes.join(" and ") + " of this item in your bag."
         : "Added size " + size + " to your bag.";
     });
+  }
+
+  var ZONE_TITLES = { chest: "Chest", waist: "Waist", hip: "Hip", shoulder_width: "Shoulder", sleeve_length: "Sleeve length", garment_length: "Length",
+    thigh: "Thigh", inseam: "Inseam", neck: "Neck", back_rise: "Back rise", upper_back: "Upper back" };
+  var ZONE_ORDER = ["chest", "waist", "hip", "shoulder_width", "sleeve_length", "garment_length", "thigh", "inseam", "neck", "back_rise", "upper_back"];
+
+  // If the seller has put a chart on the store for this product (size chart studio), show it and let the size widget use it.
+  function applyLiveChart() {
+    var cfg = window.MeasuredFit && window.MeasuredFit.config, slot = document.querySelector("[data-fit-product]");
+    if (!cfg || !slot) return;
+    var fit; try { fit = JSON.parse(slot.getAttribute("data-fit-product")); } catch (e) { return; }
+    fetch(cfg.api + "/v1/store/charts/" + encodeURIComponent(fit.ref), { headers: { "X-Merchant-Key": cfg.merchant } })
+      .then(function (r) { return r.status === 200 ? r.json() : null; })   // 204: the seller has not put a chart on the store
+      .then(function (c) {
+        if (!c || !c.sizes) return;
+        var labels = Object.keys(c.sizes);
+        var zones = ZONE_ORDER.filter(function (z) { return labels.some(function (l) { return c.sizes[l][z] !== undefined; }); });
+        var modal = document.getElementById("chart-modal");
+        if (modal) {
+          var table = modal.querySelector("table");
+          var html = "<tr><th>Size</th>" + zones.map(function (z) { return "<th>" + ZONE_TITLES[z] + " (cm)</th>"; }).join("") + "</tr>";
+          labels.forEach(function (l) { html += "<tr><td>" + l + "</td>" + zones.map(function (z) { return "<td>" + (c.sizes[l][z] === undefined ? "" : c.sizes[l][z]) + "</td>"; }).join("") + "</tr>"; });
+          table.innerHTML = html;
+          var title = document.getElementById("chart-title"); if (title) title.textContent = "Size guide: garment measurements";
+          var note = document.getElementById("chart-live-note") || document.createElement("p");
+          note.id = "chart-live-note"; note.textContent = "Garment laid flat, full circumference, in cm. Measured by the seller (version " + c.version + ").";
+          if (!note.parentNode) table.parentNode.insertBefore(note, table);
+        }
+        var sel = document.getElementById("size");
+        if (sel) { var keep = sel.value; sel.innerHTML = ""; labels.forEach(function (l) { var o = document.createElement("option"); o.value = l; o.textContent = l; sel.appendChild(o); }); if (labels.indexOf(keep) >= 0) sel.value = keep; }
+        fit.size_chart = { sizes: c.sizes, chart_type: "garment", unit: "cm", size_system: (fit.size_chart && fit.size_chart.size_system) || "ALPHA" };
+        slot.setAttribute("data-fit-product", JSON.stringify(fit));
+        if (window.MeasuredFit.remount) window.MeasuredFit.remount();
+        document.body.setAttribute("data-chart-version", String(c.version));
+      }, function () { /* the printed chart stays */ });
   }
 
   function initCart() {
@@ -79,6 +119,7 @@
         ? "You have more than one size of the same item. At checkout we will help you choose which to keep." : "";
     }
     render();
+    window.addEventListener("dtc:bag", function () { paint(); render(); });
   }
 
   paint();

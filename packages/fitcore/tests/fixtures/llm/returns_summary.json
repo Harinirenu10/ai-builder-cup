@@ -1,0 +1,37 @@
+{
+ "facts": {
+  "product": "Oxford Button-Down Shirt",
+  "ordered_size": "S",
+  "reported_reason": "too small",
+  "fit_guarantee": true,
+  "size_recommended_at_purchase": "S",
+  "confidence_at_purchase": 0.91,
+  "days_since_order": 4,
+  "shopper_left_a_note": true,
+  "ordered_size_spec_cm": {
+   "chest": 108.0,
+   "garment_length": 72.0,
+   "sleeve_length": 60.0
+  },
+  "measured_garment_cm": {
+   "chest": 102.0,
+   "garment_length": 70.0,
+   "sleeve_length": 58.5
+  },
+  "measured_minus_spec_cm": {
+   "chest": -6.0,
+   "garment_length": -2.0,
+   "sleeve_length": -1.5
+  },
+  "routing": "auto exchange",
+  "status": "approved exchange",
+  "rule_log": [
+   "Fit guarantee applies: size S was bought, the twin recommended S with confidence 0.91 (needs at least 0.70).",
+   "Unboxing measurement does not match the size S label: worst zone chest is off by 6.0 cm (tolerance 1.5 cm). Closest chart size is S (0.3 cm off).",
+   "Rule 1: the garment does not match its label, so the exchange is approved automatically and SKU dtc-shirt is flagged for a label error."
+  ]
+ },
+ "response": {
+  "text": "An Oxford Button-Down Shirt in size S was ordered, and the return reason was reported as too small. Measured garment dimensions were 102.0 cm chest, 70.0 cm garment length, and 58.5 cm sleeve length, which differed from the size S specification by -6.0 cm, -2.0 cm, and -1.5 cm respectively. Because the chest deviation of 6.0 cm exceeded the 1.5 cm tolerance, the garment did not match its label specifications, resulting in an automatically approved exchange and a label error flag under the fit guarantee rules."
+ }
+}

@@ -143,20 +143,25 @@
     this.query();
   };
 
+  // One fit query with a consent token; resolves {ok, status, body} whatever the status.
+  function request(product, token) {
+    return fetch(api + "/v1/fit-query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Merchant-Key": merchant },
+      body: JSON.stringify({ product: product, consent_token: token })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: {} }; });
+    });
+  }
+  function codeOf(res) { return ((res.body && res.body.detail) || {}).code || ""; }
+
   Widget.prototype.query = function () {
     var self = this, c = getConsent();
     if (!c) return this.connect();
     this.busy("Finding your size…");
-    var done = function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: {} }; });
-    };
-    fetch(api + "/v1/fit-query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Merchant-Key": merchant },
-      body: JSON.stringify({ product: this.product, consent_token: c.token })
-    }).then(done).then(function (res) {
+    request(this.product, c.token).then(function (res) {
       if (res.ok) return self.result(res.body);
-      var detail = (res.body && res.body.detail) || {}, code = detail.code || "";
+      var code = codeOf(res);
       if (RECONNECT[code]) { setConsent(null); return self.reconnect(); }
       if (code === "no_twin") return self.noTwin();
       self.idle(ERRORS[code] || "We could not find your size right now. Please try again.");
@@ -205,6 +210,32 @@
     for (var i = 0; i < nodes.length; i++) if (!nodes[i].__mfw) { nodes[i].__mfw = true; new Widget(nodes[i]); }
   }
 
-  window.MeasuredFit = { mount: mountAll, version: "1.0.0" };
+  // For the store's own scripts (cart nudge, checkout). recommend() never opens a pop-up: with no consent it rejects.
+  window.MeasuredFit = {
+    mount: mountAll,
+    version: "1.2.0",
+    config: { merchant: merchant, api: api },
+    // Re-read every data-fit-product (a store page that swapped in a new size chart calls this).
+    remount: function () {
+      var boxes = document.querySelectorAll(".mfw");
+      for (var i = 0; i < boxes.length; i++) boxes[i].parentNode.removeChild(boxes[i]);
+      var hosts = document.querySelectorAll("[data-fit-product]");
+      for (var j = 0; j < hosts.length; j++) hosts[j].__mfw = false;
+      listeners.length = 0;
+      mountAll();
+    },
+    hasConsent: function () { return !!getConsent(); },
+    token: function () { var c = getConsent(); return c ? c.token : null; },
+    recommend: function (product) {
+      var c = getConsent();
+      if (!c) return Promise.reject({ code: "no_consent" });
+      return request(product, c.token).then(function (res) {
+        if (res.ok) return res.body;
+        var code = codeOf(res) || "error";
+        if (RECONNECT[code]) setConsent(null);
+        return Promise.reject({ code: code });
+      });
+    }
+  };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountAll); else mountAll();
 })();

@@ -4,9 +4,13 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from apilib.charts import router as charts_router
 from apilib.cors import DynamicCORS
 from apilib.fitquery import router as fit_query_router
 from apilib.gifts import router as gifts_router
+from apilib.orders import router as orders_router
+from apilib.returns import router as returns_router
+from apilib.simulate import router as simulate_router
 from fitcore.fit import apply_reviews, evaluate, explain, tailor_card
 from fitcore.fit.verdict import business_verdict
 from fitcore.schemas import (
@@ -32,6 +36,10 @@ app.add_middleware(DynamicCORS)
 for _prefix in ("/v1", "/api/v1"):
     app.include_router(fit_query_router, prefix=_prefix)
     app.include_router(gifts_router, prefix=_prefix)
+    app.include_router(orders_router, prefix=_prefix)
+    app.include_router(returns_router, prefix=_prefix)
+    app.include_router(charts_router, prefix=_prefix)
+    app.include_router(simulate_router, prefix=_prefix)
 app.include_router(gifts_router)  # the gift paths also work without a prefix: POST /gifts, GET /gifts/{id}
 
 

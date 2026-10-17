@@ -23,6 +23,8 @@
 
 When the answer arrives the widget fires `measuredfit:result` (it bubbles; `detail` is the response). The demo store uses it to preselect the size.
 
+For a store's own scripts the widget also exposes `MeasuredFit.config` (merchant key and API base), `hasConsent()`, `token()`, `recommend(product)` (a fit query that never opens a pop-up: it rejects when there is no consent) and `remount()` (re-read every `data-fit-product`, for a page that swapped in a new size chart).
+
 ## How it works
 1. The first click opens `{data-app}/app/connect?merchant=...&origin=...` in a pop-up. The shopper signs in and approves.
 2. The pop-up posts a signed consent token (30 days) to the opener, and only to the store origin the API accepted. The widget accepts messages only from `data-app`'s origin and only from its own pop-up.

@@ -96,6 +96,10 @@ service cloud.firestore {
     match /sims/{simId} {
       allow read, write: if false;
     }
+    // Unboxing measurements (garment values and an overlay image, never body data): server only.
+    match /unboxing_measurements/{id} {
+      allow read, write: if false;
+    }
     // Store-facing logs and gift requests: server only. fit_queries holds no body data and no user id.
     match /fit_queries/{queryId} {
       allow read, write: if false;

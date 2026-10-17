@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ShieldCheck, TrendingDown, CheckCircle, AlertTriangle, Database } from 'lucide-react';
 
 export const BusinessConsole: React.FC = () => {
@@ -16,6 +17,18 @@ export const BusinessConsole: React.FC = () => {
           <p className="text-sm text-slate-300 mt-1">
             Real-time fit analytics, size curve diagnostics, and return reduction intelligence.
           </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Link to="/biz/returns" className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs font-semibold hover:bg-white/20">
+            Returns desk &rarr;
+          </Link>
+          <Link to="/biz/charts" className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs font-semibold hover:bg-white/20">
+            Size chart studio &rarr;
+          </Link>
+          <Link to="/biz/simulate" className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs font-semibold hover:bg-white/20">
+            Return simulation &rarr;
+          </Link>
         </div>
 
         {/* Privacy Enforcement Notice */}

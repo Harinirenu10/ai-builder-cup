@@ -85,6 +85,15 @@ class FitConfig(BaseModel):
     max_adjustment_cm: float
     contexts: dict[str, ReviewContext]
     adapter: ReviewAdapter
+    label_match_tolerance_cm: float
+    default_return_policy: str
+    default_return_window_days: int
+    jump_tolerance_cm: float
+    population: dict[str, Any]
+    target: dict[str, Any]
+    regrade: dict[str, Any]
+    default_step_cm: dict[MeasurementZone, list[float]]
+    overrides: dict[Category, dict[MeasurementZone, list[float]]] = {}
 
 
 def _load(name: str) -> dict[str, Any]:
@@ -95,7 +104,7 @@ def _load(name: str) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def get_config() -> FitConfig:
     raw: dict[str, Any] = {}
-    for name in ("zones.yaml", "ease.yaml", "fabric.yaml", "alterations.yaml", "reviews.yaml"):
+    for name in ("zones.yaml", "ease.yaml", "fabric.yaml", "alterations.yaml", "reviews.yaml", "returns.yaml", "grading.yaml", "sim.yaml"):
         raw.update(_load(name))
     for fits in raw["target_ease_cm"].values():
         for zones in fits.values():

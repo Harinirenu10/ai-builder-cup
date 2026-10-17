@@ -193,7 +193,7 @@ def page(p: dict, api: str, app: str, widget_src: str) -> str:
 <script type="application/ld+json">{json.dumps(ld)}</script>
 <link rel="stylesheet" href="store.css"></head>
 <body data-product="{p['slug']}" data-title="{html.escape(p['title'])}" data-price="{p['price'].strip('$')}">
-<header class="top"><a class="brand" href="index.html">Demo Threads Co.</a><nav><a href="index.html">Shop</a><a href="cart.html">Bag (<span id="cart-count">0</span>)</a></nav></header>
+<header class="top"><a class="brand" href="index.html">Demo Threads Co.</a><nav><a href="index.html">Shop</a><a href="cart.html">Bag (<span id="cart-count">0</span>)</a><a href="returns.html">Returns</a></nav></header>
 <main>
 <div class="sim">SIMULATED storefront for testing. Fictional brand, invented products and reviews.</div>
 <div class="grid">
@@ -229,12 +229,29 @@ def index_page(api: str, app: str) -> str:
 """
 
 
-def cart_page() -> str:
-    return """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your bag | Demo Threads Co.</title><link rel="stylesheet" href="store.css"></head>
-<body><header class="top"><a class="brand" href="index.html">Demo Threads Co.</a><nav><a href="index.html">Shop</a><a href="cart.html">Bag (<span id="cart-count">0</span>)</a></nav></header>
-<main><div class="sim">SIMULATED storefront for testing. Nothing here is for sale.</div><h1>Your bag</h1><div id="cart-lines"></div><p id="cart-total"></p>
-<p id="cart-two-sizes" role="status"></p></main><footer>Demo Threads Co. is a fictional brand used to demonstrate Measured Fit.</footer><script src="store.js" defer></script></body></html>
+def _shell(title: str, body: str, api: str, app: str, widget_src: str, scripts: str = "") -> str:
+    """Pages that need the widget's config and consent (cart, checkout, returns) but show no size finder."""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} | Demo Threads Co.</title><link rel="stylesheet" href="store.css"></head>
+<body><header class="top"><a class="brand" href="index.html">Demo Threads Co.</a><nav><a href="index.html">Shop</a><a href="cart.html">Bag (<span id="cart-count">0</span>)</a><a href="returns.html">Returns</a></nav></header>
+<main><div class="sim">SIMULATED storefront for testing. Nothing here is for sale.</div>{body}</main>
+<footer>Demo Threads Co. is a fictional brand used to demonstrate Measured Fit.</footer>
+<script src="{html.escape(widget_src)}" data-merchant="{MERCHANT_KEY}" data-api="{html.escape(api)}" data-app="{html.escape(app)}" defer></script>
+<script src="store.js" defer></script><script src="store-orders.js" defer></script>{scripts}</body></html>
 """
+
+
+def cart_page(api: str, app: str, widget_src: str) -> str:
+    return _shell("Your bag", """<h1>Your bag</h1><div id="nudge" aria-live="polite"></div><div id="cart-lines"></div><p id="cart-total"></p>
+<p id="cart-two-sizes" role="status"></p><p><a id="to-checkout" class="button" href="checkout.html">Checkout</a></p>""", api, app, widget_src)
+
+
+def checkout_page(api: str, app: str, widget_src: str) -> str:
+    return _shell("Checkout", '<h1>Checkout</h1><div id="checkout-root"></div>', api, app, widget_src)
+
+
+def returns_page(api: str, app: str, widget_src: str) -> str:
+    return _shell("Returns", """<h1>Return or exchange</h1><p>Tell us what happened. A person at the store reviews anything the checks cannot settle, and nothing is declined automatically.</p>
+<div id="returns-root"></div>""", api, app, widget_src)
 
 
 def truth(p: dict) -> dict:
@@ -256,10 +273,12 @@ def build(out: Path, api: str = "/api", app: str = "", widget_src: str | None = 
         for view in ("front", "back"):
             (out / "img" / f"{p['slug']}-{view}.svg").write_text(svg(p, view), encoding="utf-8")
     if out.resolve() != HERE:  # building somewhere else (tests, a deploy folder): bring the static assets along
-        for name in ("store.css", "store.js"):
+        for name in ("store.css", "store.js", "store-orders.js"):
             (out / name).write_bytes((HERE / name).read_bytes())
     (out / "index.html").write_text(index_page(api, app), encoding="utf-8")
-    (out / "cart.html").write_text(cart_page(), encoding="utf-8")
+    (out / "cart.html").write_text(cart_page(api, app, widget_src), encoding="utf-8")
+    (out / "checkout.html").write_text(checkout_page(api, app, widget_src), encoding="utf-8")
+    (out / "returns.html").write_text(returns_page(api, app, widget_src), encoding="utf-8")
     (out / "truth.json").write_text(json.dumps({f"store_{p['slug']}": truth(p) for p in PRODUCTS}, indent=2), encoding="utf-8")
     (out / "products.json").write_text(json.dumps({p["slug"]: fit_product(p) for p in PRODUCTS}, indent=2), encoding="utf-8")
 

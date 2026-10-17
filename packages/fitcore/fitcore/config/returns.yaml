@@ -1,0 +1,5 @@
+# Returns routing. Every number is a starting value to tune.
+
+label_match_tolerance_cm: 1.5     # TUNE  a measured garment zone within this of the ordered size's chart value counts as matching the label
+default_return_policy: review     # review | refund | exchange: what the merchant's standard policy does when none is set
+default_return_window_days: 30    # TUNE  inside this the standard policy applies; outside it a person decides (never an automatic rejection)

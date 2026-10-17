@@ -45,4 +45,4 @@ scoring:
   verdict_epsilon_cm: 0.001 # TUNE  tolerance on range boundaries
 
 guarantee:
-  min_confidence: 0.75   # TUNE  recommendation confidence needed to be eligible for a fit guarantee
+  min_confidence: 0.7    # TUNE  confidence needed for a fit guarantee (orders and the fit query)
