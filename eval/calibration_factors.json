@@ -1,0 +1,188 @@
+{
+  "factors": {
+    "chest": 1.0315,
+    "waist": 0.9707,
+    "hip": 1.0173,
+    "shoulder_width": 1.0271,
+    "sleeve_length": 1.0211,
+    "torso_length": 1.0257,
+    "garment_length": 1.0212,
+    "inseam": 1.0188,
+    "thigh": 1.0262,
+    "neck": 1.0253,
+    "back_rise": 1.0347,
+    "upper_back": 1.0303
+  },
+  "metrics": {
+    "chest": {
+      "sample_count": 5,
+      "k_factor": 1.0315,
+      "mae_before": 3.08,
+      "mae_after": 0.26,
+      "mae_improvement_pct": 91.6
+    },
+    "waist": {
+      "sample_count": 5,
+      "k_factor": 0.9707,
+      "mae_before": 2.44,
+      "mae_after": 0.15,
+      "mae_improvement_pct": 93.9
+    },
+    "hip": {
+      "sample_count": 5,
+      "k_factor": 1.0173,
+      "mae_before": 1.7,
+      "mae_after": 0.11,
+      "mae_improvement_pct": 93.8
+    },
+    "shoulder_width": {
+      "sample_count": 5,
+      "k_factor": 1.0271,
+      "mae_before": 1.2,
+      "mae_after": 0.19,
+      "mae_improvement_pct": 84.4
+    },
+    "sleeve_length": {
+      "sample_count": 5,
+      "k_factor": 1.0211,
+      "mae_before": 1.3,
+      "mae_after": 0.2,
+      "mae_improvement_pct": 84.7
+    },
+    "torso_length": {
+      "sample_count": 5,
+      "k_factor": 1.0257,
+      "mae_before": 1.3,
+      "mae_after": 0.19,
+      "mae_improvement_pct": 85.0
+    },
+    "garment_length": {
+      "sample_count": 5,
+      "k_factor": 1.0212,
+      "mae_before": 1.5,
+      "mae_after": 0.06,
+      "mae_improvement_pct": 96.1
+    },
+    "inseam": {
+      "sample_count": 5,
+      "k_factor": 1.0188,
+      "mae_before": 1.5,
+      "mae_after": 0.1,
+      "mae_improvement_pct": 93.0
+    },
+    "thigh": {
+      "sample_count": 5,
+      "k_factor": 1.0262,
+      "mae_before": 1.5,
+      "mae_after": 0.09,
+      "mae_improvement_pct": 94.2
+    },
+    "neck": {
+      "sample_count": 5,
+      "k_factor": 1.0253,
+      "mae_before": 0.96,
+      "mae_after": 0.06,
+      "mae_improvement_pct": 93.3
+    },
+    "back_rise": {
+      "sample_count": 5,
+      "k_factor": 1.0347,
+      "mae_before": 1.26,
+      "mae_after": 0.15,
+      "mae_improvement_pct": 88.1
+    },
+    "upper_back": {
+      "sample_count": 5,
+      "k_factor": 1.0303,
+      "mae_before": 1.3,
+      "mae_after": 0.17,
+      "mae_improvement_pct": 86.7
+    }
+  },
+  "leave_one_subject_out": {
+    "chest": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.32,
+      "train_sample_count": 20,
+      "train_mae": 0.24
+    },
+    "waist": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.18,
+      "train_sample_count": 20,
+      "train_mae": 0.15
+    },
+    "hip": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.13,
+      "train_sample_count": 20,
+      "train_mae": 0.1
+    },
+    "shoulder_width": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.23,
+      "train_sample_count": 20,
+      "train_mae": 0.18
+    },
+    "sleeve_length": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.25,
+      "train_sample_count": 20,
+      "train_mae": 0.19
+    },
+    "torso_length": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.24,
+      "train_sample_count": 20,
+      "train_mae": 0.18
+    },
+    "garment_length": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.07,
+      "train_sample_count": 20,
+      "train_mae": 0.06
+    },
+    "inseam": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.13,
+      "train_sample_count": 20,
+      "train_mae": 0.1
+    },
+    "thigh": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.11,
+      "train_sample_count": 20,
+      "train_mae": 0.08
+    },
+    "neck": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.08,
+      "train_sample_count": 20,
+      "train_mae": 0.06
+    },
+    "back_rise": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.19,
+      "train_sample_count": 20,
+      "train_mae": 0.14
+    },
+    "upper_back": {
+      "n_subjects": 5,
+      "held_out_sample_count": 5,
+      "held_out_mae": 0.21,
+      "train_sample_count": 20,
+      "train_mae": 0.16
+    }
+  }
+}

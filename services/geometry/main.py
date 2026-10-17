@@ -1,10 +1,12 @@
-"""Geometry Service: MediaPipe pose extraction, SMPL body fitting, critic loop, and mesh generation."""
-
+import logging
 import os
 from pathlib import Path
-from fastapi import FastAPI
+from typing import Any
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fitcore.schemas import MeasurementZone, Measurement, Measurements
+
+logger = logging.getLogger("geometry.main")
 
 app = FastAPI(
     title="Measured Fit Geometry Service",
@@ -40,6 +42,28 @@ def healthz() -> dict[str, str | bool]:
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "Measured Fit Geometry service online"}
+
+
+@app.post("/twin/process/{job_id}")
+def process_twin_job_endpoint(
+    job_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Cloud Tasks worker endpoint for processing 3D body twin generation jobs."""
+    from services.geometry.worker import JobNotFoundError, process_twin_job
+
+    queue_name = request.headers.get("X-CloudTasks-QueueName")
+    task_name = request.headers.get("X-CloudTasks-TaskName")
+    logger.info("Received twin processing request for job %s (task=%s, queue=%s)", job_id, task_name, queue_name)
+
+    try:
+        result = process_twin_job(job_id=job_id)
+        return result
+    except JobNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception("Internal error processing twin job %s: %s", job_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

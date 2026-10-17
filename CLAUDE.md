@@ -3,9 +3,11 @@ Deadline: prototype submitted by Oct 18. Optimize for a working, demoable vertic
 Thesis: "Measured, not guessed." We measure the body (a 3D twin from 4 photos) and the garment (one flat-lay photo next to an A4 sheet) so shoppers and businesses can trust size and fit answers.
 
 ## Hard constraints
-- AI: Gemini models only, through the google-genai Python SDK on Gemini Enterprise Agent Platform (formerly Vertex AI): genai.Client(vertexai=True, project=GOOGLE_CLOUD_PROJECT, location="global"). Model IDs come only from env vars GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL, GEMINI_IMAGE_MODEL, VTO_MODEL. Never hardcode a model ID. Never use any gemini-1.x or gemini-2.x model.
-- Every Gemini call goes through packages/fitcore/fitcore/llm.py (structured JSON output via pydantic schemas, retries, latency logging).
+- AI: All LLM calls across the system route through packages/fitcore/fitcore/llm.py (structured JSON output via pydantic schemas, 3 retries, latency/token logging).
+  - Production / Deployment: Gemini models through the google-genai Python SDK on Gemini Enterprise Agent Platform (Vertex AI): genai.Client(vertexai=True, project=GOOGLE_CLOUD_PROJECT, location="global"). Model IDs come only from env vars GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL, GEMINI_IMAGE_MODEL, VTO_MODEL. Never hardcode a model ID. Never use any gemini-1.x or gemini-2.x model.
+  - Local Dev & Offline Testing: Internal Ollama endpoint with model `gemma4:12b` enabled via `LLM_PROVIDER=ollama` (OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_API_KEY).
 - Hosting: Cloud Run for services (min instances 0), Firebase Hosting for the web app, Firestore + Cloud Storage for data, Cloud Tasks for async jobs. Ask before adding any other cloud service.
+
 - Perception: MediaPipe Pose Landmarker. Body model: SMPL via the smplx package; model files are license-gated and placed manually in services/geometry/models/smpl/.
 - Agents: Google ADK (google-adk) for the planner agent.
 - Privacy: raw body photos are deleted after processing unless the user opts in to keep the front photo. Measurements and shape parameters are readable only by their owner. Business-facing endpoints return verdicts only, never measurements. Users confirm they are 18+ before body capture.
