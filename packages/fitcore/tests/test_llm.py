@@ -283,3 +283,14 @@ def test_gemini_api_backend_requires_key(monkeypatch):
     monkeypatch.setenv("LLM_BACKEND", "gemini_api")
     with pytest.raises(ValueError, match="GEMINI_API_KEY"):
         generate_json("flash", "x", Rec, client=_gemini_client({}))
+
+
+def test_gemini_path_wraps_image_bytes_as_inline_parts(monkeypatch):
+    monkeypatch.setenv("GEMINI_PRO_MODEL", "gemini-exp-custom")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    gem = _gemini_client({"recommended_size": "G"})
+    generate_json("pro", ["look", _png((64, 64))], Rec, client=gem)
+    contents = gem.models.generate_content.call_args.kwargs["contents"]
+    assert contents[0] == "look"
+    inline = contents[1].inline_data
+    assert inline.mime_type == "image/png" and inline.data[:4] == b"\x89PNG"

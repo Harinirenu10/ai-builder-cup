@@ -239,6 +239,21 @@ def _encode_image(data: bytes) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+def _gemini_part(types: Any, part: Any) -> Any:
+    if isinstance(part, (bytes, bytearray)):
+        return types.Part.from_bytes(data=bytes(part), mime_type=_sniff_mime(bytes(part)))
+    return part
+
+
+def _sniff_mime(data: bytes) -> str:
+    import io
+
+    from PIL import Image
+
+    fmt = (Image.open(io.BytesIO(data)).format or "PNG").lower()
+    return {"jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}.get(fmt, f"image/{fmt}")
+
+
 def _generate_json_vertex(role, parts, schema, system, client, use_api_key=False):
     from google.genai import types
 
@@ -246,14 +261,9 @@ def _generate_json_vertex(role, parts, schema, system, client, use_api_key=False
     if client is None:
         client = get_client(use_api_key)
 
-    # Format content parts
-    contents: list[Any] = []
-    if isinstance(parts, (str, bytes)):
-        contents = [parts]
-    elif isinstance(parts, list):
-        contents = parts
-    else:
-        contents = [parts]
+    # Format content parts; raw bytes become inline image parts, which the SDK requires.
+    items = parts if isinstance(parts, list) else [parts]
+    contents: list[Any] = [_gemini_part(types, p) for p in items]
 
     config = types.GenerateContentConfig(
         response_mime_type="application/json",

@@ -43,3 +43,6 @@ scoring:
   short_pose_factor: 0.5    # TUNE  strain held for less time counts this fraction of tight
   confidence_gap_full: 20.0 # TUNE  score gap to the next size that gives full gap confidence
   verdict_epsilon_cm: 0.001 # TUNE  tolerance on range boundaries
+
+guarantee:
+  min_confidence: 0.75   # TUNE  recommendation confidence needed to be eligible for a fit guarantee

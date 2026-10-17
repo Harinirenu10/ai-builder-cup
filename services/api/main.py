@@ -1,10 +1,12 @@
 """API Service: Customer and Business endpoints, ADK planner orchestration."""
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from apilib.cors import DynamicCORS
+from apilib.fitquery import router as fit_query_router
+from apilib.gifts import router as gifts_router
 from fitcore.fit import apply_reviews, evaluate, explain, tailor_card
 from fitcore.fit.verdict import business_verdict
 from fitcore.schemas import (
@@ -24,13 +26,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(DynamicCORS)
+
+# New business-facing routes live under /v1 and, for the Firebase Hosting rewrite (/api/**), under /api/v1.
+for _prefix in ("/v1", "/api/v1"):
+    app.include_router(fit_query_router, prefix=_prefix)
+    app.include_router(gifts_router, prefix=_prefix)
+app.include_router(gifts_router)  # the gift paths also work without a prefix: POST /gifts, GET /gifts/{id}
 
 
 @app.get("/healthz")

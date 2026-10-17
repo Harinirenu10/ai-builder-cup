@@ -1,0 +1,157 @@
+{
+  "product": {
+    "title": "Oxford Button-Down Shirt",
+    "brand": "Demo Threads Co.",
+    "category": "shirt",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 100.0
+      }
+    ],
+    "stretch_class": null,
+    "pre_shrunk": "true",
+    "pre_shrunk_evidence": "Sanforized: pre-shrunk",
+    "size_system": "letter",
+    "chart_type": "garment",
+    "chart_type_evidence": "Size guide: garment measurements",
+    "unit": "cm",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "S",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 108.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 44.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 60.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 72.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "M",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 114.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 46.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 61.5,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 74.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "L",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 120.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 48.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 63.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 76.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "XL",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 126.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 50.0,
+            "value_max": null
+          },
+          {
+            "label": "Sleeve length (cm)",
+            "value_min": 64.5,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 78.0,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "img/shirt-front.svg",
+      "img/shirt-back.svg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [
+      {
+        "zone": "chest",
+        "direction": "runs_small",
+        "strength": 0.2,
+        "mention_count": 1,
+        "reviewer_context": []
+      },
+      {
+        "zone": "chest",
+        "direction": "tight",
+        "strength": 0.2,
+        "mention_count": 1,
+        "reviewer_context": []
+      },
+      {
+        "zone": "sleeve_length",
+        "direction": "long",
+        "strength": 0.2,
+        "mention_count": 1,
+        "reviewer_context": []
+      }
+    ],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 1
+  }
+}

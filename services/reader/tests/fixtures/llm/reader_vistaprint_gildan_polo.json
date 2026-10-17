@@ -1,0 +1,36 @@
+{
+  "product": {
+    "title": "Gildan® Men's Polo Shirt",
+    "brand": "Gildan",
+    "category": "shirt",
+    "fit_type": "slim",
+    "fabric": [
+      {
+        "fiber": "Cotton",
+        "percent": 100.0
+      }
+    ],
+    "stretch_class": null,
+    "pre_shrunk": "unknown",
+    "pre_shrunk_evidence": null,
+    "size_system": "letter",
+    "chart_type": "unknown",
+    "chart_type_evidence": null,
+    "unit": "unknown",
+    "circumference_basis": "unknown",
+    "sizes": [],
+    "image_urls": [
+      "https://cms.cloudinary.vpsvc.com/image/fetch/c_scale,dpr_auto,f_auto,q_auto:best,w_816/https%3A%2F%2Flogo.rendering.cimpress.io%2Fapi%2Fv2%2Fplatform-products%2Fvistaprint%2Fen-sg%2FPRD-7RELLLOW1%2Fsample-image%3FproductVersion%3D15%26requestor%3Dbulma-pdp-herocarousel-fragment%26selectedOptions%255BSubstrate%2520Color%255D%3D%2523000000%26size%3D1500",
+      "https://cms.cloudinary.vpsvc.com/image/fetch/c_scale,dpr_auto,f_auto,q_auto:best,w_816/https%3A%2F%2Frendering.documents.cimpress.io%2Fv1%2Fvistaprint-prod%2Fpreview%3Fwidth%3D1500%26scene%3Dhttps%253A%252F%252Fcdn.scenes.documents.cimpress.io%252Fv3%252Fassets%252Fcba93118-c2fc-4c6d-b86b-d2eba076a729%252Frevisions%252Fdcef4a72-d7b4-42ef-bb80-14b6883e64a2%252Fcontent",
+      "https://cms.cloudinary.vpsvc.com/image/fetch/c_scale,dpr_auto,f_auto,q_auto:best,w_816/https%3A%2F%2Frendering.documents.cimpress.io%2Fv1%2Fvistaprint-prod%2Fpreview%3Fwidth%3D1500%26scene%3Dhttps%253A%252F%252Fcdn.scenes.documents.cimpress.io%252Fv3%252Fassets%252F0c4d42b6-9b97-4f48-ba7d-9aed9c8ed89a%252Frevisions%252F06a5a93d-043f-454f-8113-03df8376e2d2%252Fcontent",
+      "https://cms.cloudinary.vpsvc.com/image/fetch/c_scale,dpr_auto,f_auto,q_auto:best,w_816/https%3A%2F%2Frendering.documents.cimpress.io%2Fv1%2Fvistaprint-prod%2Fpreview%3Fwidth%3D1500%26scene%3Dhttps%253A%252F%252Fcdn.scenes.documents.cimpress.io%252Fv3%252Fassets%252F2c2eec68-04cb-427f-bb54-0072edf2bddc%252Frevisions%252F0732d8a0-2bed-413e-84d7-43bf4266dcbb%252Fcontent"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 0
+  }
+}

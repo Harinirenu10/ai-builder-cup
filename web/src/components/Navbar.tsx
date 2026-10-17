@@ -19,10 +19,10 @@ export const Navbar: React.FC = () => {
 
   const toggleTheme = () => setIsDark(!isDark);
 
-  const navLinks = [
+  const navLinks: { to: string; label: string; icon: React.ElementType; badge: string; external?: string }[] = [
     { to: '/app', label: 'Customer PWA', icon: User, badge: 'Consumer' },
     { to: '/biz', label: 'Business Console', icon: Briefcase, badge: 'Merchant' },
-    { to: '/store', label: 'Demo Threads Co.', icon: ShoppingBag, badge: 'Storefront' },
+    { to: '/store', label: 'Demo Threads Co.', icon: ShoppingBag, badge: 'Storefront', external: '/store/' },
   ];
 
   return (
@@ -50,16 +50,19 @@ export const Navbar: React.FC = () => {
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = location.pathname.startsWith(link.to);
-            return (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
+            const cls = `flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+              isActive
+                ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+            }`;
+            // The storefront is a separate static site: a normal link loads it, the router would not.
+            return link.external ? (
+              <a key={link.to} href={link.external} className={cls}>
+                <Icon className="w-4 h-4" />
+                <span>{link.label}</span>
+              </a>
+            ) : (
+              <Link key={link.to} to={link.to} className={cls}>
                 <Icon className="w-4 h-4" />
                 <span>{link.label}</span>
               </Link>

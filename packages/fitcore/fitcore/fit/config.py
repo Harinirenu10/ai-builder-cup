@@ -37,6 +37,10 @@ class Scoring(BaseModel):
     verdict_epsilon_cm: float
 
 
+class Guarantee(BaseModel):
+    min_confidence: float
+
+
 class AlterationAction(BaseModel):
     action: str
     text: str
@@ -54,6 +58,13 @@ class ReviewContext(BaseModel):
     threshold_cm: float
 
 
+class ReviewAdapter(BaseModel):
+    min_mentions: int
+    moderate_from: float
+    strong_from: float
+    context_share: float
+
+
 class FitConfig(BaseModel):
     zones_by_category: dict[Category, list[MeasurementZone]]
     hard_zones: dict[Category, list[MeasurementZone]]
@@ -61,6 +72,7 @@ class FitConfig(BaseModel):
     body_ref: dict[MeasurementZone, MeasurementZone]
     length_zones: list[MeasurementZone]
     scoring: Scoring
+    guarantee: Guarantee
     target_ease_cm: dict[Category, dict[FitType, dict[MeasurementZone, EaseRange]]]
     stretch_allowance_cm: dict[StretchClass, float]
     shrinkage_pct: dict[str, Shrinkage]
@@ -72,6 +84,7 @@ class FitConfig(BaseModel):
     strength_cm: dict[str, float]
     max_adjustment_cm: float
     contexts: dict[str, ReviewContext]
+    adapter: ReviewAdapter
 
 
 def _load(name: str) -> dict[str, Any]:

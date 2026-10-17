@@ -94,10 +94,16 @@ class SizeChart(BaseModel):
         default="cm",
         description="Unit of the supplied values; normalised to 'cm' after validation"
     )
+    original_unit: Literal["cm", "in"] | None = Field(
+        default=None, description="Unit the source page used, kept for display; values are already cm"
+    )
+    type_evidence: str | None = Field(default=None, description="Label text that decided body vs garment, e.g. 'To fit chest'")
+    flags: list[str] = Field(default_factory=list, description="Quality flags, e.g. 'non_monotonic:chest'")
 
     @model_validator(mode="after")
     def _normalise_to_cm(self) -> "SizeChart":
         if self.unit == "in":
+            self.original_unit = self.original_unit or "in"
             self.sizes = {
                 size: {zone: inches_to_cm(v, precision=4) for zone, v in row.items()}
                 for size, row in self.sizes.items()
@@ -128,6 +134,9 @@ class Product(BaseModel):
         description="Legacy fabric breakdown as fractions, e.g. {'cotton': 0.98, 'elastane': 0.02}; used when fabric is empty"
     )
     description: str | None = Field(default=None, description="Product description text")
+    pre_shrunk_evidence: str | None = Field(default=None, description="Short page snippet behind pre_shrunk")
+    source_url: str | None = None
+    image_urls: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _fabric_from_legacy(self) -> "Product":
@@ -293,3 +302,30 @@ class BizVerdict(BaseModel):
     zones: list[BizZoneVerdict] = Field(default_factory=list)
     alterations: list[BizAlteration] = Field(default_factory=list)
     warning_kinds: list[str] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- reviews read from a product page
+
+
+class ReviewerContext(BaseModel):
+    """What a reviewer said about themselves, when they said it."""
+    height_cm: float | None = None
+    torso: Literal["long", "short"] | None = None
+    note: str | None = Field(default=None, description="Short note, e.g. 'bought M, 5ft 10'")
+
+
+class ZoneSignal(BaseModel):
+    zone: MeasurementZone
+    direction: Literal["runs_small", "runs_large", "short", "long", "tight", "loose"]
+    strength: float = Field(ge=0.0, le=1.0)
+    mention_count: int = Field(ge=1)
+    reviewer_context: list[ReviewerContext] = Field(default_factory=list)
+
+
+class ReviewSignals(BaseModel):
+    """Signals from review text only. Counts come from reviews actually read; empty when there were none."""
+    reviews_read: int = Field(default=0, ge=0)
+    zone_signals: list[ZoneSignal] = Field(default_factory=list)
+    shrinkage_mentions: int = Field(default=0, ge=0)
+    color_mismatch_mentions: int = Field(default=0, ge=0)
+    sheerness_mentions: int = Field(default=0, ge=0)

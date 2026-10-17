@@ -18,3 +18,10 @@ contexts:
     body_zone: torso_length
     op: "<="
     threshold_cm: 42.0   # TUNE
+
+# Converting reader ReviewSignals (strength 0-1, mention counts) into engine signals.
+adapter:
+  min_mentions: 2          # TUNE  ignore a signal said by fewer reviewers
+  moderate_from: 0.34      # TUNE  strength at which a signal counts as moderate
+  strong_from: 0.67        # TUNE  strength at which a signal counts as strong
+  context_share: 0.5       # TUNE  share of reviewer_context entries that must agree to apply a torso context

@@ -3,7 +3,7 @@
 import operator
 
 from fitcore.fit.config import get_config
-from fitcore.schemas import Measurements, ReviewAdjustments, ReviewSignal
+from fitcore.schemas import Measurements, ReviewAdjustments, ReviewSignal, ReviewSignals
 
 _OPS = {">=": operator.ge, "<=": operator.le}
 
@@ -33,3 +33,28 @@ def apply(review_signals: list[ReviewSignal], twin: Measurements) -> tuple[Revie
     cap = cfg.max_adjustment_cm
     cm = {z: max(-cap, min(cap, v)) for z, v in cm.items()}
     return ReviewAdjustments(cm=cm), notes
+
+
+_SMALLER = {"runs_small", "short", "tight"}
+
+
+def from_review_signals(signals: ReviewSignals) -> list[ReviewSignal]:
+    """Reader output to engine signals: direction folded to smaller/larger, strength to a label, torso context applied.
+
+    Signals mentioned by fewer than adapter.min_mentions reviewers are dropped.
+    """
+    a = get_config().adapter
+    out: list[ReviewSignal] = []
+    for s in signals.zone_signals:
+        if s.mention_count < a.min_mentions:
+            continue
+        strength = "strong" if s.strength >= a.strong_from else "moderate" if s.strength >= a.moderate_from else "slight"
+        torsos = [c.torso for c in s.reviewer_context if c.torso]
+        context = None
+        if torsos and s.reviewer_context:
+            for kind in ("long", "short"):
+                if torsos.count(kind) / len(s.reviewer_context) >= a.context_share:
+                    context = f"{kind}_torso"
+        out.append(ReviewSignal(zone=s.zone, direction="smaller" if s.direction in _SMALLER else "larger",
+                                strength=strength, context=context))  # type: ignore[arg-type]
+    return out
