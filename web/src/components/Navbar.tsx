@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Sparkles, User, Briefcase, ShoppingBag, ShieldCheck } from 'lucide-react';
+import { Sun, Moon, Sparkles, User, Briefcase, ShoppingBag, ShieldCheck, LogIn, LogOut, UserCheck } from 'lucide-react';
+import { useAuth } from '../lib/auth';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
+  const { user, signedIn, signInWithDemo, signOut } = useAuth();
   const [isDark, setIsDark] = useState(() => {
     return document.documentElement.classList.contains('dark') ||
       window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -19,10 +21,10 @@ export const Navbar: React.FC = () => {
 
   const toggleTheme = () => setIsDark(!isDark);
 
-  const navLinks = [
+  const navLinks: { to: string; label: string; icon: React.ElementType; badge: string; external?: string }[] = [
     { to: '/app', label: 'Customer PWA', icon: User, badge: 'Consumer' },
     { to: '/biz', label: 'Business Console', icon: Briefcase, badge: 'Merchant' },
-    { to: '/store', label: 'Demo Threads Co.', icon: ShoppingBag, badge: 'Storefront' },
+    { to: '/store', label: 'Demo Threads Co.', icon: ShoppingBag, badge: 'Storefront', external: '/store/' },
   ];
 
   return (
@@ -50,16 +52,19 @@ export const Navbar: React.FC = () => {
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = location.pathname.startsWith(link.to);
-            return (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
+            const cls = `flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+              isActive
+                ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+            }`;
+            // The storefront is a separate static site: a normal link loads it, the router would not.
+            return link.external ? (
+              <a key={link.to} href={link.external} className={cls}>
+                <Icon className="w-4 h-4" />
+                <span>{link.label}</span>
+              </a>
+            ) : (
+              <Link key={link.to} to={link.to} className={cls}>
                 <Icon className="w-4 h-4" />
                 <span>{link.label}</span>
               </Link>
@@ -74,6 +79,41 @@ export const Navbar: React.FC = () => {
             <span className="font-medium">Privacy Guaranteed</span>
           </div>
 
+          {/* Auth Controls */}
+          <div className="flex items-center space-x-2" data-testid="auth-controls">
+            {signedIn && user ? (
+              <div className="flex items-center space-x-2">
+                <span
+                  id="user-badge"
+                  className="flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                  title={`Signed in as ${user.uid}`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span className="font-medium max-w-[100px] sm:max-w-[140px] truncate">
+                    {user.isDemo ? `Demo (${user.uid})` : user.displayName || user.email || user.uid}
+                  </span>
+                </span>
+                <button
+                  id="signout-btn"
+                  onClick={() => signOut()}
+                  title="Sign out"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                id="demo-signin-btn"
+                onClick={() => signInWithDemo('demo-shopper')}
+                className="flex items-center space-x-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition-all"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Try Demo</span>
+              </button>
+            )}
+          </div>
+
           <button
             onClick={toggleTheme}
             aria-label="Toggle Theme"
@@ -86,3 +126,4 @@ export const Navbar: React.FC = () => {
     </header>
   );
 };
+

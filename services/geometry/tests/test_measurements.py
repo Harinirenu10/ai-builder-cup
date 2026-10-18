@@ -397,6 +397,175 @@ def test_chest_width_excludes_arm_contamination():
     assert chest_cm < 110.0, f"chest ({chest_cm}cm) does not reflect the expected contamination reduction"
 
 
+def test_chest_window_saturation_lowers_confidence():
+    """Regression test: when the chest scan's exclusion window is filled
+    edge-to-edge (no background pixel found anywhere inside it), that is the
+    same contamination signature services/geometry/validator.py's
+    check_chest_arm_separation rejects photos for -- it means the window
+    excluded nothing, because the arm and torso share one contiguous
+    silhouette region. Prior to this fix, calculate_photo_measurements gave
+    such a scan the same ~0.90 confidence as a clean one (see
+    test_chest_width_excludes_arm_contamination above, and the xfail'd
+    synthetic round-trip test), silently reporting an untrustworthy chest
+    number as if it were reliable. This does not make chest's value
+    accurate -- the window still cannot find the true torso edge when arm
+    and torso are silhouette-fused -- but confidence weighting (preserved by
+    fit_smpl_shape, services/geometry/fitting.py) can now down-weight the
+    zone's contribution to the shared 10-beta optimization instead of
+    treating a contaminated number as equally trustworthy as a clean one.
+    """
+    contaminated_lm, contaminated_masks = _build_contaminated_front_view_data()
+    clean_lm, clean_masks = _build_synthetic_view_data()
+
+    contaminated = calculate_photo_measurements(
+        landmark_results=contaminated_lm, masks=contaminated_masks, user_height_cm=175.0,
+    )
+    clean = calculate_photo_measurements(
+        landmark_results=clean_lm, masks=clean_masks, user_height_cm=175.0,
+    )
+
+    contaminated_conf = contaminated.zones[MeasurementZone.chest].confidence
+    clean_conf = clean.zones[MeasurementZone.chest].confidence
+
+    assert clean_conf >= 0.85, f"clean scan confidence ({clean_conf}) should be unaffected by the saturation check"
+    assert contaminated_conf <= 0.45, (
+        f"window-saturated chest confidence ({contaminated_conf}) should be sharply reduced, not treated as reliable"
+    )
+
+
+def test_window_saturation_confidence_can_fall_below_general_floor():
+    """Regression test for the confidence-floor fix: calculate_photo_measurements
+    has a general max(0.2, ...) confidence floor shared by most zones. That
+    floor was found (via a synthetic SMPL round-trip) to be too generous for
+    window-saturated zones specifically: a 0.2-confidence contaminated chest
+    target still pulled fit_smpl_shape's shared 10-beta optimization enough
+    to fail an otherwise-clean sibling zone (waist) by 1.7-2.2cm. Confidence
+    down to ~0.02-0.05 cleanly resolved that collateral error. This test
+    proves (1) window-saturated zones (chest, upper_back) can now drop
+    below 0.2 down to the dedicated ~0.05 floor, and (2) a zone with no
+    window-saturation detection at all (waist) is completely unaffected --
+    its confidence stays in its normal high-confidence range even when fed
+    the exact same contaminated photo that drives chest/upper_back's floor
+    down, proving the change is scoped to the saturated zones only.
+    """
+    contaminated_lm, contaminated_masks = _build_contaminated_front_view_data()
+
+    measurements = calculate_photo_measurements(
+        landmark_results=contaminated_lm, masks=contaminated_masks, user_height_cm=175.0,
+    )
+
+    chest_conf = measurements.zones[MeasurementZone.chest].confidence
+    waist_conf = measurements.zones[MeasurementZone.waist].confidence
+
+    # Window-saturated zone: must clear the dedicated lower floor, strictly
+    # below the general 0.2 floor every other zone still uses.
+    assert chest_conf < 0.2, (
+        f"chest confidence ({chest_conf}) did not drop below the general 0.2 floor "
+        "despite a window-saturated (fully contaminated) scan"
+    )
+    assert chest_conf >= 0.05, f"chest confidence ({chest_conf}) dropped below the evidenced ~0.05 floor"
+
+    # Unaffected zone (no window-saturation detection exists for waist at
+    # all): must retain its normal, un-degraded confidence on this same
+    # contaminated front mask -- the fix must not have broadened to zones
+    # it was never meant to touch.
+    assert waist_conf >= 0.85, (
+        f"waist confidence ({waist_conf}) was unexpectedly degraded by a change "
+        "that should only affect window-saturated zones (chest, upper_back)"
+    )
+
+
+def test_upper_back_excludes_arm_contamination_on_back_view():
+    """Regression test: an arm/hand near the armpit row on the BACK view must
+    not inflate upper_back width, and a saturated exclusion window there must
+    lower confidence the same way it does for chest on the front view. Found
+    via a synthetic SMPL ground-truth round trip (test_synthetic_round_trip.py):
+    upper_back's row sits in the same shoulder-adjacent band as chest's,
+    confirmed to fuse arm and torso into one contiguous back-view silhouette
+    region for this investigation's synthetic pose (unbounded width ~55.6cm
+    vs. ~41.4cm true armscye-to-armscye distance on that mesh). Prior to this
+    fix, calculate_photo_measurements scanned the back mask with no column
+    bound at all for this zone.
+    """
+    lm_results, masks = _build_synthetic_view_data()
+    back_lm = lm_results["back"]
+
+    # True torso silhouette (160:240, 80px) plus a wide contamination band
+    # straddling the upper_back row (~row 226 for these landmarks).
+    contaminated_back_mask = np.zeros((800, 400), dtype=np.uint8)
+    contaminated_back_mask[100:700, 160:240] = 1
+    contaminated_back_mask[200:260, 40:360] = 1
+    contaminated_masks = dict(masks)
+    contaminated_masks["back"] = contaminated_back_mask
+
+    _, _, _, w_cm_before = extract_row_width(contaminated_back_mask, 226, back_lm.cm_per_pixel)
+    assert w_cm_before > 80.0, "test setup sanity check: arm contamination should dominate an unbounded scan"
+
+    clean = calculate_photo_measurements(lm_results, masks, user_height_cm=175.0)
+    contaminated = calculate_photo_measurements(lm_results, contaminated_masks, user_height_cm=175.0)
+
+    clean_upper_back = clean.zones[MeasurementZone.upper_back]
+    contaminated_upper_back = contaminated.zones[MeasurementZone.upper_back]
+
+    # Bounded extraction must land far below the ~93cm raw contamination width.
+    assert contaminated_upper_back.value_cm < 60.0, (
+        f"upper_back ({contaminated_upper_back.value_cm}cm) does not reflect the expected contamination reduction"
+    )
+    assert clean_upper_back.confidence >= 0.85, "clean scan confidence should be unaffected by the saturation check"
+    assert contaminated_upper_back.confidence <= 0.45, (
+        f"window-saturated upper_back confidence ({contaminated_upper_back.confidence}) should be sharply reduced"
+    )
+
+
+def test_garment_length_uses_hip_landmark_row_not_widest_hip_row():
+    """Regression test: garment_length must measure down to the hip LANDMARK
+    row (y_hips), not the widest-hip-circumference row (y_hip_max) that the
+    HIP zone deliberately searches for near/below the glutes. A synthetic
+    SMPL ground-truth round trip found y_hip_max lands 9-11cm further down
+    than the hip-socket height garment_length's ground truth uses, inflating
+    garment_length by 13-15cm. This test only checks that garment_length
+    tracks the landmark row and NOT the widest row when they clearly
+    disagree -- it does not re-verify HIP's own value, which is untouched.
+    """
+    lm_results, masks = _build_synthetic_view_data()
+    front_lm = lm_results["front"]
+
+    # A narrow 60px torso baseline, well inside HIP's landmark-pair scan
+    # window, plus a wider 88px bulge confined to a row band below the hip
+    # landmark row (the same shape -- wider near the glutes than at the
+    # iliac crest -- the synthetic SMPL mesh showed). This isolates HIP's
+    # widest-row search (which should move to the bulge) from
+    # garment_length's hip reference (which should not, if it uses the
+    # landmark row y_hips instead of the widest row y_hip_max).
+    l_hip, r_hip = front_lm.get("LEFT_HIP"), front_lm.get("RIGHT_HIP")
+    y_hips = (l_hip.pixel_y + r_hip.pixel_y) / 2.0
+    base_mask = np.zeros((800, 400), dtype=np.uint8)
+    base_mask[100:700, 170:230] = 1
+    bulge_mask = base_mask.copy()
+    y_wide_start, y_wide_end = int(y_hips) + 20, int(y_hips) + 60
+    bulge_mask[y_wide_start:y_wide_end, 156:244] = 1
+
+    masks_base = dict(masks)
+    masks_base["front"] = base_mask
+    masks_bulge = dict(masks)
+    masks_bulge["front"] = bulge_mask
+
+    baseline = calculate_photo_measurements(lm_results, masks_base, user_height_cm=175.0)
+    widened = calculate_photo_measurements(lm_results, masks_bulge, user_height_cm=175.0)
+
+    # Sanity check: widening below the hip row actually changed hip's own
+    # widest-row search, or this test would not exercise the distinction.
+    assert widened.zones[MeasurementZone.hip].value_cm != baseline.zones[MeasurementZone.hip].value_cm, (
+        "test setup sanity check: widening below the hip landmark should change HIP's widest-row result"
+    )
+    # garment_length must NOT move just because the widest-hip row moved --
+    # it should still be anchored to the hip landmark row.
+    assert widened.zones[MeasurementZone.garment_length].value_cm == baseline.zones[MeasurementZone.garment_length].value_cm, (
+        "garment_length changed when only the row below the hip landmark changed -- "
+        "it appears to still be using the widest-hip-row search (y_hip_max), not the hip landmark row (y_hips)"
+    )
+
+
 def test_waist_hip_thigh_width_exclude_arm_contamination():
     """Regression test: an arm/hand resting against the body must not inflate
     waist, hip, or thigh width. Reproduces a real failure where the hip scan

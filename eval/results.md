@@ -415,3 +415,337 @@ reason string, so it converts to a hard failure the moment someone fixes chest �
 stay green. Three of four root causes are now understood and two are fixed in production code with
 real-photo evidence; chest's remaining gap is a genuine, diagnosed, unresolved 2D-silhouette limitation,
 not a hidden or assumed one.
+
+---
+
+## 11. Garment Flat-Lay Photo Measurement — SYNTHETIC ONLY, ZERO REAL GARMENTS EVALUATED (2026-10-17)
+
+**`eval/garment_photo_synthetic_fixture.csv` (1 row) is a synthetic, hand-constructed smoke-test
+fixture, exactly like §1's body-measurement fixture. It is NOT a real garment photographed next to a
+real A4 sheet, and it is NOT independently tape-measured.** The "photo" is a solid-color rectangle drawn
+at the A4 aspect ratio with `cv2.rectangle`; the garment keypoints are hand-specified coordinates passed
+in as `corrected_keypoints` (bypassing the Gemini Flash call entirely, by design — see
+`fitcore/garment_photo/pipeline.py`'s `corrected_keypoints` parameter). The "tape" values in the CSV are
+simply the pipeline's own computed output from a prior run, copied into the CSV — i.e. this row is
+constructed so the harness reports 0.00cm MAE against itself. It proves the CSV-driven eval harness
+(`eval/garment_photo_eval.py`) correctly loads an image, runs the deterministic A4-detection →
+homography-rectification → measurement pipeline, and aggregates per-field MAE. **It proves nothing about
+measurement accuracy against a real garment or a real tape measure.**
+
+### 11.1 What IS validated (synthetic, deterministic-math only)
+
+`packages/fitcore/tests/garment_photo/` (14 tests, see `test_pipeline.py`) validates the deterministic
+geometry end-to-end against **synthetic scenes with known keypoint-to-keypoint distances in mm, under a
+perspective warp applied to the whole scene**, with Gemini replaced by a mock returning the (warp- and
+rectification-projected) true keypoint positions:
+- `test_tops_measurements_within_half_cm_of_ground_truth` / `test_bottoms_measurements_within_half_cm_of_ground_truth`:
+  all applicable fields (chest_flat/circ, shoulder_width, garment_length, hem_width, waist_flat/circ,
+  hip_flat, inseam, leg_opening) within **0.5cm** of the known synthetic ground truth.
+- `test_missing_a4_raises_ui_safe_error`: confirms the exact UI-safe string
+  `"Place a full A4 sheet next to the garment."` is raised when no A4 sheet is detected.
+- `test_corrected_keypoints_skip_gemini_and_recompute_deterministically`: confirms Gemini is never
+  called when `corrected_keypoints` is supplied (asserted via a callback that raises if invoked), and
+  that the recomputed measurement still matches synthetic ground truth.
+- `test_a4_detection.py`: A4 sheet correctly detected and its corner ratio confirmed within the
+  1.414 ± 0.08 tolerance under a ~3% perspective warp; a non-A4-ratio rectangle and a frame with no
+  sheet at all both correctly report `a4_found=False`.
+
+This demonstrates the **math is implemented correctly** (homography scale, keypoint-pair distance
+formulas, confidence degradation from quality flags) — exactly analogous to what §1–5 demonstrated for
+the body-measurement calibration math. It says nothing about real fabric, real lighting, real camera
+lenses, real A4 sheets with wear/glare, or real Gemini Flash keypoint-detection accuracy.
+
+### 11.2 Acceptance target: **NOT YET MET — zero real garments evaluated**
+
+The acceptance target stated in the task is: *chest_flat and garment_length error ≤ 1.5 cm on three real
+garments, independently tape-measured.* **This repository currently contains zero real garment photos
+and zero independent tape measurements of any real garment.** `samples/README.md` documents the expected
+folder convention (`samples/garment/<garment_name>/` with a flat-lay photo, an A4 sheet in frame, and
+manual tape ground truth) for when real garments become available, and `eval/garment_photo_eval.py` is
+ready to run against that CSV format the moment real data exists — but no such data has been collected
+in this session. **Do not cite any accuracy number for this feature beyond "the deterministic math
+passes on synthetic fixtures," per the same standard applied throughout this document.**
+
+### 11.3 Known, undemonstrated risk areas specific to this feature
+
+- **Gemini Flash keypoint accuracy on real fabric is entirely untested.** All pipeline tests above mock
+  the keypoint response; no real Gemini Flash (or Ollama) call has ever been made against a real garment
+  photo in this session. Keypoint detection on real fabric (prints, dark colors reducing seam contrast,
+  folds that are not quality-flagged) could behave very differently from the synthetic mock.
+- **A4 detection on real backgrounds is untested.** The detector (`a4_detection.py`) was only exercised
+  against synthetic solid-color backgrounds. Real-world confounders — glare on glossy paper, patterned
+  surfaces, a second rectangular object in frame, partial shadow across the sheet — are not covered by
+  any test here.
+- **The hip-circumference approximation (`2 × hip_flat`, used only internally for body-twin comparison in
+  `to_measurement_zones()`) is a documented engineering judgment call, not something validated against
+  any real hip measurement** — it mirrors the explicit chest_circ/waist_circ formula given in the task
+  spec, applied by analogy, and should be revisited once real garments are available.
+- **The `fits_twin` ease-threshold bands in `services/api/garment_routes.py`
+  (`CIRCUMFERENCE_EASE_RANGE_CM`, `LINEAR_EASE_RANGE_CM`) are placeholder constants for this vertical
+  slice, not derived from any fit-engine or user study.** No `fit engine` module exists yet in
+  `fitcore` (per `CLAUDE.md`'s component list) to supersede them.
+
+### Exact commands
+
+```bash
+python -m pytest packages/fitcore/tests/garment_photo -v
+python -m pytest services/api/tests/test_garment_routes.py -v
+python eval/garment_photo_eval.py --input eval/garment_photo_synthetic_fixture.csv
+```
+
+### 11.4 Real-Garment Validation Workflow — ready to run, no real garments collected yet
+
+This subsection specifies exactly what to collect and run to validate §11.2's acceptance target (chest_flat
+and garment_length error ≤1.5cm on three real garments). **No code changes are required** — the pipeline
+(`fitcore/garment_photo/`) and `eval/garment_photo_eval.py` already support this; only real photos and real
+tape measurements are missing.
+
+**1. Photograph 3 real garments.** For each, create a folder under `samples/garment/<garment_name>/`
+(convention already documented in `samples/README.md`) containing one flat-lay photo:
+- Garment laid fully flat, no folds/overlap (the pipeline flags `folded_or_overlapping`/`not_flat`, which
+  degrades the reported confidence if violated).
+- A **full, uncropped A4 sheet** visible flat beside the garment, same plane, reasonable contrast against
+  the background (A4 detection is grayscale/Canny/contour-based — low contrast or glare can prevent
+  detection; see `fitcore/garment_photo/a4_detection.py`).
+- At least one top/kurta and one bottoms garment, to cover both keypoint vocabularies
+  (`CATEGORY_KEYPOINTS` in `fitcore/garment_photo/schemas.py`).
+
+**2. Tape-measure each garment by hand** (independently of this pipeline) for the fields that apply to its
+category, per `GARMENT_ZONE_DEFINITIONS` in `fitcore/garment_photo/schemas.py`:
+
+| Category | Field | What to tape-measure |
+| :--- | :--- | :--- |
+| tops/kurtas | `chest_flat_cm` | Flat garment width at armpit level (**required for the acceptance target**) |
+| tops/kurtas | `chest_circ_cm` | Full chest circumference wrapped around the garment — tape-measuring this independently (rather than trusting `2 × chest_flat`) is the more rigorous check |
+| tops/kurtas | `shoulder_width_cm` | Seam-to-seam straight distance across the shoulders |
+| tops/kurtas | `sleeve_length_cm` | Shoulder seam to outer cuff edge |
+| tops/kurtas | `garment_length_cm` | Back collar/neck point to hem (**required for the acceptance target**) |
+| tops/kurtas | `hem_width_cm` | Flat width at the hemline |
+| bottoms | `waist_flat_cm` | Flat width across the waistband |
+| bottoms | `waist_circ_cm` | Full waist circumference wrapped around the garment |
+| bottoms | `hip_flat_cm` | Flat width across the hip line |
+| bottoms | `inseam_cm` | Crotch seam to inner hem edge |
+| bottoms | `leg_opening_cm` | Flat width across the leg opening |
+
+Only fill in the fields that apply to that garment's category; leave the rest blank.
+
+**3. Fill in `samples/garment/garment_photo_real_fixture.csv`** (template already created, 3 placeholder
+rows, 0 real data filled in):
+
+```csv
+image_path,category,keypoints_path,chest_flat_cm,chest_circ_cm,shoulder_width_cm,sleeve_length_cm,garment_length_cm,hem_width_cm,waist_flat_cm,waist_circ_cm,hip_flat_cm,inseam_cm,leg_opening_cm
+tee_01/photo.jpg,tops,,,,,,,,,,,,
+tee_02/photo.jpg,tops,,,,,,,,,,,,
+jeans_01/photo.jpg,bottoms,,,,,,,,,,,,
+```
+
+- `image_path` is relative to the CSV's own folder (`samples/garment/`), e.g. `tee_01/photo.jpg`.
+- Rename rows/folders to your actual garments; add more rows for more garments.
+- **Leave `keypoints_path` blank.** A blank `keypoints_path` is required to actually exercise the real
+  Gemini Flash / Ollama keypoint-detection call — this is the thing that has never been tested against a
+  real garment. Filling it in bypasses the LLM entirely (`measure_garment_photo`'s `corrected_keypoints`
+  path) and would only test the deterministic geometry again, which §11.1 already covers on synthetic data.
+
+**4. Run the evaluation:**
+
+```bash
+python eval/garment_photo_eval.py --input samples/garment/garment_photo_real_fixture.csv --output eval/garment_photo_real_results.json
+```
+
+This prints per-field MAE across all 3 garments and writes full per-row diagnostics (including each row's
+`a4_confidence`, `measurement_confidence`, and any failures) to the `--output` JSON.
+
+**5. Report honestly.** Whatever MAE numbers come out — update this section (§11.4) with the actual
+results and either confirm or refute the ≤1.5cm acceptance target. Do not carry forward the "NOT YET MET"
+language in §11.2 without re-checking it against whatever this run actually produces.
+
+#### Current configuration check (performed this session, no fabricated data involved)
+
+Checked whether the real LLM call and A4 detection can actually run, using the live `.env` config and a
+placeholder (non-garment) test image — **this only checks plumbing/connectivity, it is not a measurement
+and no accuracy claim is made from it:**
+
+| Component | Status | Detail |
+| :--- | :--- | :--- |
+| A4 detection (`a4_detection.py`) | **Works now** | Pure OpenCV (grayscale/Canny/contours), no external service dependency. Confirmed detecting an A4-ratio rectangle in a locally-generated test image. |
+| `LLM_PROVIDER` (active) | `ollama` | Set in `.env`. This is the sanctioned "Local Dev & Offline Testing" path per `CLAUDE.md`, not a mock — a real network call. |
+| Ollama (`gemma4:12b`) via `fitcore.llm.generate_json` | **Works now** | A real structured-JSON call (plain text) succeeded. A real **multimodal** call (image + category prompt, the exact code path `detect_garment_keypoints` uses) also succeeded against a placeholder test image in ~6.3s, returning a valid (empty) `GeminiGarmentKeypoints` object — empty because that image has no real garment construction lines to find, not because the call failed. `OLLAMA_BASE_URL` in `.env` points to an internal proxy; a direct unauthenticated `GET /api/tags` on it returns 403, but the `/api/chat` endpoint `fitcore.llm` actually uses works without needing `OLLAMA_API_KEY` set. |
+| Gemini Flash (Vertex AI) | **NOT runnable right now** | `GEMINI_FLASH_MODEL` is unset in `.env` (would raise `ValueError` from `fitcore.llm.get_model_for_role`), and no ADC credentials are configured in this environment (`GOOGLE_APPLICATION_CREDENTIALS` unset, `gcloud` CLI not installed, no local ADC token). To validate against production Gemini Flash specifically rather than the Ollama dev path, someone needs to set `GEMINI_FLASH_MODEL` to an approved non-1.x/2.x model id, set `LLM_PROVIDER=gemini`, and configure a service account key or run `gcloud auth application-default login` on the machine running the eval. |
+
+**Net effect for step 4 above:** running the real-garment eval today will route the keypoint-detection call
+through Ollama (`gemma4:12b`), a real (non-mocked) LLM call, not Vertex AI Gemini Flash. That is a valid,
+CLAUDE.md-sanctioned way to validate the pipeline's real-world behavior, but if the acceptance target is
+specifically meant to validate the production Gemini Flash path, the Vertex AI prerequisites above must be
+set up first.
+
+### 11.5 Session Verification (2026-10-17, this session) — re-run baseline, LLM provider re-check, fit-engine dependency check
+
+Re-verified §11's code against a fresh test run and a fresh configuration check this session, rather than
+assuming either was still accurate. The pipeline and API route files were confirmed unchanged (file
+modification times fall entirely within this feature's own earlier work, before this verification pass).
+
+**Actual test commands and pass/fail counts, this session:**
+
+```bash
+python -m pytest packages/fitcore/tests -q      # 49 passed
+python -m pytest services/api/tests -q          # 21 passed
+python -m pytest eval -q                        # 2 passed
+python -m pytest services/geometry -q           # 135 passed, 2 xfailed (pre-existing; see §7/§10, unrelated to this feature)
+```
+
+No regressions, no code changes required by this verification pass. `services/geometry`'s result reflects
+the concurrent, independent Prompt 1 session's own in-progress work on `measurements.py`, `fitting.py`, and
+their tests at the time this was run (now also covering a file this session did not touch:
+`services/geometry/fitting.py` and `services/geometry/tests/test_fitting.py`) — none of those files were
+read, edited, or otherwise touched for this feature.
+
+**Three-garment real accuracy table — BLOCKED, not fabricated:**
+
+| Garment | Category | Target (tape) | Predicted (pipeline) | Abs. error | ≤1.5cm? |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| garment 1 | — | no real photo exists | — | — | **BLOCKED** |
+| garment 2 | — | no real photo exists | — | — | **BLOCKED** |
+| garment 3 | — | no real photo exists | — | — | **BLOCKED** |
+
+Confirmed this session by directory listing: `samples/garment/` contains only the blank
+`garment_photo_real_fixture.csv` template, the explicitly-fake `.example.csv`, and `README.md`. No garment
+photo, no tape measurement, and no pipeline prediction exists for any real garment. **The ≤1.5cm
+chest_flat/garment_length acceptance target is BLOCKED pending real photos and independent tape
+measurements** — see §11.4 for the exact workflow to unblock it. All synthetic and code-level validation
+possible without real data is complete (§11.1, 14/14 tests passing).
+
+**Gemini Flash verification — exact blocker, re-confirmed this session (no secrets printed):**
+
+```
+LLM_PROVIDER = ollama   (active provider; not Gemini)
+GEMINI_FLASH_MODEL set  = False
+GEMINI_PRO_MODEL set    = False
+GOOGLE_APPLICATION_CREDENTIALS set = False
+gcloud CLI              = not found on PATH
+```
+
+Forcing `LLM_PROVIDER=gemini` and calling `fitcore.llm.get_model_for_role("flash")` directly raises,
+verbatim:
+
+```
+ValueError: Model environment variable GEMINI_FLASH_MODEL is empty or not set. Configure a valid model ID
+from Agent Platform Model Garden.
+```
+
+Gemini Flash is **not genuinely configured** — a missing-credential/missing-model-id blocker, not a code
+defect. **Any real-garment run performed before this is fixed will go through Ollama (`gemma4:12b`),
+already confirmed as a real, working, non-mocked multimodal call in the "Current configuration check"
+above. Ollama results must not be presented as Gemini Flash validation** — they validate the pipeline's
+handling of a real LLM response, not the production Vertex AI Gemini Flash path specifically. To unblock:
+set `GEMINI_FLASH_MODEL` to an approved non-1.x/2.x model id, set `LLM_PROVIDER=gemini`, and configure ADC
+(service account key file or `gcloud auth application-default login`).
+
+**Downstream fit-engine integration — dependency confirmed, not invented:**
+
+Searched the repository this session for any `fit_engine`/`FitEngine` module or interface
+(`grep -rln "fit_engine\|FitEngine" --include="*.py" .`, plus a filename search): **none exists anywhere
+in this repository.** `packages/fitcore/fitcore/` contains only `garment_photo/`, `llm.py`, `schemas.py`,
+and `units.py` — no fit-engine module, stub, or interface. Per `CLAUDE.md`'s own component list,
+`fit_engine` is a planned-but-unbuilt piece of `fitcore`.
+
+Because there is no Prompt 2 fit-engine contract to confirm against, the `fits_twin` verdict in
+`services/api/garment_routes.py` (`_fits_twin_verdict`, `CIRCUMFERENCE_EASE_RANGE_CM`,
+`LINEAR_EASE_RANGE_CM`) is **left exactly as it was** — a documented placeholder ease-threshold heuristic,
+not replaced. Replacing it now would mean inventing the fit-engine's contract rather than confirming it.
+Recorded here as an open, unresolved cross-prompt dependency: once a real `fit_engine` module exists,
+`_fits_twin_verdict` should be revisited to call it instead of its own threshold bands.
+
+**API integration — re-confirmed behaviors (existing tests, no changes needed):** all three endpoints'
+validation, persistence, and ownership-check behaviors (category validation, empty-image rejection,
+A4-missing 422, 403 on mismatched `user_id` for garment/twin/order, 404 on missing garment/twin/order/
+product, 422 on a product with no size-chart entry for the ordered size) were re-inspected directly in
+`services/api/garment_routes.py` this session and match what `services/api/tests/test_garment_routes.py`'s
+10 passing tests already exercise. No code changes were required or made.
+
+**Status against the original Prompt 3 acceptance criteria as of §11.5: PARTIALLY COMPLETE.** Every
+code-level, synthetic-data, and API-integration requirement is implemented and passing (72/72 tests in
+this feature's own scope at the time of §11.5: 49 fitcore + 21 API + 2 eval; the separate, unrelated
+`services/geometry` suite is unaffected at 135 passed/2 xfailed). The real-world acceptance criterion
+(≤1.5cm chest_flat/garment_length error on 3 real, independently tape-measured garments) was **BLOCKED**,
+not failed — it had never been attempted, since no real garment photos or tape measurements exist in this
+repository. Gemini Flash production validation was separately **BLOCKED** on missing model-id/ADC
+configuration. The `fits_twin` downstream-fit-engine integration was an **open dependency**, not a
+defect — see §11.6 below, where it was resolved once a real `fitcore.fit` engine landed via the merge and
+approval was given to build the adapter.
+
+### 11.6 Session Verification (2026-10-17, continued) — real `fitcore.fit` adapter, Store-based order lookup, README collision
+
+Follow-up to §11.5, after approval to build the three items flagged there as needing sign-off. A `git
+merge` (`MERGE_HEAD` = `9db7d90`, merging a separately-developed branch with a real `fitcore.fit` engine,
+a different `fitcore.garment` implementation, and an `apilib/` API layer) landed in the working tree
+between sessions; none of it was committed, reset, stashed, or otherwise altered here.
+
+**1. `samples/garment/README.md` naming collision — resolved without discarding either side.** The
+merge's `fitcore.garment` sample-photo README and this feature's garment_photo-fixture README collided
+on the same path; the merge left the former on disk. Rather than overwrite it again, this feature's
+content now lives at `samples/garment/REAL_GARMENT_PHOTO_FIXTURE_README.md`, which cross-references
+`README.md` by name so neither document reads as authoritative on its own. `README.md` itself was not
+touched.
+
+**2. `fits_twin` now calls the real `fitcore.fit` engine instead of a placeholder.**
+`services/api/garment_routes.py::_fits_twin_verdict` wraps the one measured garment as a single-size
+synthetic `Product.size_chart` (`chart_type="garment"`, matching `evaluate()`'s `garment_cm - body_cm`
+ease formula) and reads back each zone's real `Verdict` from `fitcore.fit.evaluate()` — the exact function
+`apilib/fitquery.py::evaluate_for_uid` already calls in production, confirmed by reading that file first.
+`GarmentCategory` (tops/kurtas/bottoms) is mapped to `fitcore.schemas.Category` as tops→shirt,
+kurtas→kurta, bottoms→trousers, chosen because `fitcore/config/zones.yaml`'s `zones_by_category` for
+those three values is the closest overlap with what this pipeline actually measures for each silhouette
+(documented inline as `GARMENT_CATEGORY_TO_FIT_CATEGORY`). The engine's 5-way `Verdict`
+(tight/ideal/loose/short/long) collapses to this feature's 3-way `FitsTwinVerdict` as
+tight+short→tight, ideal→fits, loose+long→loose (`FIT_VERDICT_TO_FITS_TWIN`). The old placeholder ease
+bands (`CIRCUMFERENCE_EASE_RANGE_CM`, `LINEAR_EASE_RANGE_CM`) are removed. The `/me/fit-prefs/from-garment`
+endpoint is untouched — it computes a plain `garment_cm - body_cm` difference, not a verdict, so it had
+no placeholder to replace. `fitcore/fit/*` itself was not modified.
+
+**3. Order lookup for `/orders/{order_id}/unboxing` now uses the existing `Store` abstraction**
+(`apilib/stores.py`, the same `get_store()` dependency `apilib/orders.py`'s checkout flow writes orders
+through), not Firestore. The order's `product_snapshots[sku].size_chart` — captured at checkout time by
+`apilib/orders.py::create_order` — is used directly as the "ordered size specification," so no separate
+product lookup exists or is needed. Since real orders are multi-item (`items: [...]`, keyed by `sku`,
+not a single `product_id`), the endpoint gained one new optional field, `sku`, required only when an
+order has more than one item (422 with a clear message otherwise). Ownership is checked against the
+real field name the Store document uses (`uid`), not the old assumed `user_id`. The Firestore-backed
+`get_order`/`create_order`/`get_product`/`create_product` methods added to
+`services/geometry/cloud_client.py` in an earlier session are no longer called anywhere and were left in
+place rather than deleted, to avoid an unforced edit to a file the concurrent merge also touches; they are
+now dead code, noted here rather than silently removed. No new storage layer was created — `Store`,
+`MemoryStore`/`FileStore`/`FirestoreStore`, and `get_store()` are all pre-existing and unmodified.
+
+**Exact test commands and results (this session):**
+
+```bash
+python -m pytest packages/fitcore/tests/garment_photo -q                              # 14 passed
+python -m pytest services/api/tests/test_garment_routes.py services/api/tests/test_api_twin.py -q  # 26 passed
+python -m pytest eval -q                                                               # 2 passed
+```
+
+42/42 in this feature's own scope, including 6 new/updated unboxing tests exercising the real
+fit-engine adapter end to end: `test_unboxing_fits_twin_verdict_ideal_via_real_fit_engine` (ease=16cm,
+exactly the shirt/regular/chest table's own ideal → `fits`), `..._tight_via_real_fit_engine` (ease=5cm,
+below the table's min of 10cm → `tight`), `..._loose_via_real_fit_engine` (ease=30cm, above the table's
+max of 22cm → `loose`), plus `test_unboxing_multi_item_order_requires_sku`,
+`..._selects_item_by_sku`, and `test_unboxing_unknown_sku_returns_422` for the Store/sku change.
+
+A broader `python -m pytest services/api/tests -q` run (5 min 50 s) shows **173 passed, 9 skipped, 5
+failed** — all 5 failures are outside this feature (`test_simulate.py`'s pre-existing parquet-cache
+failure already noted in §11.5, plus `test_planner.py` ×3 and `test_wardrobe.py` ×1, in
+`apilib/planner.py`/`apilib/wardrobe.py`, files that did not exist when this session started and whose
+timestamps show them being written by a separate, concurrent session while these tests ran). None of the
+5 touch `garment_routes.py`, `apilib/stores.py`, `apilib/orders.py`, or `fitcore.fit`. They were not
+investigated further and were not fixed, per this session's scope.
+
+**Still unchanged from §11.2/§11.5, not re-litigated here:** zero real garment photos exist, so the
+real-world ≤1.5cm chest_flat/garment_length acceptance target on 3 real, independently tape-measured
+garments remains **BLOCKED** — it has never been attempted. Gemini Flash is still not configured (same
+exact blocker as §11.5: `GEMINI_FLASH_MODEL` unset, no ADC credentials).
+
+**Status against the original Prompt 3 acceptance criteria, updated: PARTIALLY COMPLETE.** Everything
+code-level is now done, including the `fits_twin` real-fit-engine integration that §11.5 had marked as an
+open dependency pending Prompt 2 — Prompt 2's fit engine now exists (via the merge) and the adapter above
+is built, tested, and passing. The only remaining blocker is real-world data: real garment photos and
+independent tape measurements, with zero existing in this repository.

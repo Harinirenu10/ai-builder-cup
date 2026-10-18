@@ -1,0 +1,4 @@
+image_path,category,keypoints_path,chest_flat_cm,chest_circ_cm,shoulder_width_cm,sleeve_length_cm,garment_length_cm,hem_width_cm,waist_flat_cm,waist_circ_cm,hip_flat_cm,inseam_cm,leg_opening_cm
+tee_01/photo.jpg,tops,,,,,,,,,,,,
+tee_02/photo.jpg,tops,,,,,,,,,,,,
+jeans_01/photo.jpg,bottoms,,,,,,,,,,,,

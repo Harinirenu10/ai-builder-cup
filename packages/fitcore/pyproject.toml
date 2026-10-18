@@ -12,14 +12,29 @@ dependencies = [
     "pydantic>=2.6.0",
     "google-genai>=0.1.1",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "Pillow>=10.0",
+    "numpy>=1.26.0",
+    # Pinned to an exact version, not just a lower bound: a prior unbounded ">=4.10.0.84" let an
+    # environment silently install opencv-python-headless 5.0.0.93, which shifted one garment
+    # measurement fixture's recorded chest value by 0.3cm (within this test's separate
+    # truth-tolerance, but outside its exact-reproducibility one -- see
+    # tests/garment/test_measure.py::test_recorded_gemini_landmarks_give_the_same_measurements_offline
+    # for the evidence). 5.0.0.93 is the version that fixture was re-recorded against.
+    "opencv-python-headless==5.0.0.93",
 ]
 
 [project.optional-dependencies]
+population = ["pyarrow>=15.0"]   # parquet cache of the simulation population
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pyarrow>=15.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["fitcore*"]
+
+[tool.setuptools.package-data]
+fitcore = ["config/*.yaml"]

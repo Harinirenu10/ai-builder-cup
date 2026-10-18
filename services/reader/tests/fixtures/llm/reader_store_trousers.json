@@ -1,0 +1,180 @@
+{
+  "product": {
+    "title": "Pleated Tapered Chinos",
+    "brand": "Demo Threads Co.",
+    "category": "trousers",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 98.0
+      },
+      {
+        "fiber": "elastane",
+        "percent": 2.0
+      }
+    ],
+    "stretch_class": "low",
+    "pre_shrunk": "unknown",
+    "pre_shrunk_evidence": null,
+    "size_system": null,
+    "chart_type": "garment",
+    "chart_type_evidence": "Size guide: garment measurements",
+    "unit": "cm",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "30",
+        "measurements": [
+          {
+            "label": "Waist (cm)",
+            "value_min": 84.0,
+            "value_max": null
+          },
+          {
+            "label": "Hip (cm)",
+            "value_min": 104.0,
+            "value_max": null
+          },
+          {
+            "label": "Thigh (cm)",
+            "value_min": 62.0,
+            "value_max": null
+          },
+          {
+            "label": "Inseam (cm)",
+            "value_min": 80.0,
+            "value_max": null
+          },
+          {
+            "label": "Back rise (cm)",
+            "value_min": 27.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "32",
+        "measurements": [
+          {
+            "label": "Waist (cm)",
+            "value_min": 88.0,
+            "value_max": null
+          },
+          {
+            "label": "Hip (cm)",
+            "value_min": 108.0,
+            "value_max": null
+          },
+          {
+            "label": "Thigh (cm)",
+            "value_min": 64.0,
+            "value_max": null
+          },
+          {
+            "label": "Inseam (cm)",
+            "value_min": 80.0,
+            "value_max": null
+          },
+          {
+            "label": "Back rise (cm)",
+            "value_min": 27.5,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "34",
+        "measurements": [
+          {
+            "label": "Waist (cm)",
+            "value_min": 92.0,
+            "value_max": null
+          },
+          {
+            "label": "Hip (cm)",
+            "value_min": 112.0,
+            "value_max": null
+          },
+          {
+            "label": "Thigh (cm)",
+            "value_min": 66.0,
+            "value_max": null
+          },
+          {
+            "label": "Inseam (cm)",
+            "value_min": 80.0,
+            "value_max": null
+          },
+          {
+            "label": "Back rise (cm)",
+            "value_min": 28.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "36",
+        "measurements": [
+          {
+            "label": "Waist (cm)",
+            "value_min": 96.0,
+            "value_max": null
+          },
+          {
+            "label": "Hip (cm)",
+            "value_min": 116.0,
+            "value_max": null
+          },
+          {
+            "label": "Thigh (cm)",
+            "value_min": 68.0,
+            "value_max": null
+          },
+          {
+            "label": "Inseam (cm)",
+            "value_min": 80.0,
+            "value_max": null
+          },
+          {
+            "label": "Back rise (cm)",
+            "value_min": 28.5,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "img/trousers-front.svg",
+      "img/trousers-back.svg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [
+      {
+        "zone": "waist",
+        "direction": "runs_small",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": []
+      },
+      {
+        "zone": "inseam",
+        "direction": "long",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": [
+          {
+            "height_cm": 167.64,
+            "torso": null,
+            "note": "5'6"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 0
+  }
+}

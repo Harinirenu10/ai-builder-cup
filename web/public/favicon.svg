@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="fav-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="50%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+    <linearGradient id="fav-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="#090d16"/>
+  <rect x="8" y="8" width="176" height="176" rx="36" fill="none" stroke="url(#fav-grad)" stroke-width="4" opacity="0.6"/>
+  <g transform="translate(48, 40) scale(0.38)">
+    <circle cx="128" cy="48" r="36" fill="url(#fav-grad)"/>
+    <path d="M64,116 C64,100 84,92 128,92 C172,92 192,100 192,116 L204,188 C204,196 196,204 188,204 L176,204 L176,280 C176,288 168,296 160,296 L144,296 L144,220 L112,220 L112,296 L96,296 C88,296 80,288 80,280 L80,204 L68,204 C60,204 52,196 52,188 Z" fill="url(#fav-glow)"/>
+    <ellipse cx="128" cy="144" rx="60" ry="18" fill="none" stroke="#38bdf8" stroke-width="6" stroke-dasharray="10 6"/>
+    <path d="M216,40 L224,56 L240,64 L224,72 L216,88 L208,72 L192,64 L208,56 Z" fill="#38bdf8"/>
+  </g>
+</svg>

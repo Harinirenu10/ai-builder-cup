@@ -53,3 +53,11 @@ smplx_blender_addon/
 .idea/
 .DS_Store
 Thumbs.db
+# Reader service local cache
+.cache/
+
+# API local store
+services/api/.data/
+
+# Local body-photo test data (private; never commit raw body photos)
+local-test-data/

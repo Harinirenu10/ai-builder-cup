@@ -1,0 +1,33 @@
+{
+  "_note": "SIMULATED example for testing the CLI, not a real listing",
+  "category": "kurta",
+  "fit_type": "regular",
+  "unit": "in",
+  "source": "simulated_brand_b",
+  "sizes": {
+    "S": {
+      "body": {
+        "chest": 34
+      },
+      "garment": {
+        "chest": 39
+      }
+    },
+    "M": {
+      "body": {
+        "chest": 36
+      },
+      "garment": {
+        "chest": 41.5
+      }
+    },
+    "L": {
+      "body": {
+        "chest": 38
+      },
+      "garment": {
+        "chest": 44
+      }
+    }
+  }
+}

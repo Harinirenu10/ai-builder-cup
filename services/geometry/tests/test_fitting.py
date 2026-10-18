@@ -120,6 +120,92 @@ def test_inseam_uses_crotch_vertex_not_pelvis_joint():
     )
 
 
+def test_torso_length_and_back_rise_use_waist_loop_plane_not_spine1_or_post_waist_vertex():
+    """Regression test: torso_length and back_rise must reference the SAME
+    "waist plane" that waist_cm (the validated waist circumference) actually
+    measures, not the spine1 joint or the idx_post_waist vertex. A synthetic
+    SMPL ground-truth round trip found both of those disagreed with
+    waist_loop's own height by 6-10cm on this topology (spine1 sits well
+    below the natural waist; idx_post_waist, while genuinely posterior and
+    on-midline -- see test_landmark_bilateral_symmetry_and_posterior_waist
+    below -- is not at waist height either), despite both zones' doc
+    comments describing their bottom/top reference as "waist".
+    """
+    extractor = MeshMeasurementExtractor(gender="neutral")
+    model = load_smpl(gender="neutral", num_betas=10)
+    a_pose = get_a_pose_tensor()
+
+    with torch.no_grad():
+        out = model(body_pose=a_pose)
+        v = out.vertices[0]
+        j = out.joints[0]
+        meas = extractor.extract_measurements(v, j)
+
+    waist_plane_y = extractor.waist_loop.mean_plane_y(v)
+    c7_to_waist_plane_cm = float((v[extractor.idx_c7, 1] - waist_plane_y).item()) * 100.0
+    waist_plane_to_crotch_cm = float((waist_plane_y - v[extractor.idx_crotch, 1]).item()) * 100.0
+
+    c7_to_spine1_cm = float((v[extractor.idx_c7, 1] - j[3, 1]).item()) * 100.0
+    post_waist_to_crotch_cm = float(
+        torch.sqrt(torch.sum((v[extractor.idx_post_waist] - v[extractor.idx_crotch]) ** 2)).item()
+    ) * 100.0
+
+    # Sanity check: the old spine1/idx_post_waist stand-ins must actually
+    # disagree with the waist plane on this mesh, or this test would not
+    # exercise the bug it guards against.
+    assert abs(c7_to_spine1_cm - c7_to_waist_plane_cm) > 5.0, (
+        "test setup sanity check: spine1 joint should sit clearly off the waist plane"
+    )
+    assert abs(post_waist_to_crotch_cm - waist_plane_to_crotch_cm) > 5.0, (
+        "test setup sanity check: idx_post_waist should sit clearly off the waist plane"
+    )
+
+    reported_torso_len = meas[MeasurementZone.torso_length].item()
+    reported_back_rise = meas[MeasurementZone.back_rise].item()
+    assert abs(reported_torso_len - c7_to_waist_plane_cm) < 1e-3, (
+        f"torso_length ({reported_torso_len}cm) does not match C7-to-waist-plane "
+        f"({c7_to_waist_plane_cm}cm) -- it appears to use a different bottom reference"
+    )
+    assert abs(reported_back_rise - waist_plane_to_crotch_cm) < 1e-3, (
+        f"back_rise ({reported_back_rise}cm) does not match waist-plane-to-crotch "
+        f"({waist_plane_to_crotch_cm}cm) -- it appears to use a different top reference"
+    )
+
+
+def test_garment_length_uses_hip_joints_not_pelvis_root():
+    """Regression test: garment_length must measure down to the hip SOCKET
+    joints (1, 2), which is what a 2D pose landmarker's HIP landmark
+    corresponds to, not the pelvis ROOT joint (0). A synthetic SMPL
+    ground-truth round trip found the pelvis root sits ~9.5cm ABOVE the hip
+    sockets on this topology, which made the photo-side's garment_length
+    (measured down to its own hip-landmark row) disagree with this zone's
+    ground truth by 13-15cm even after other fixes.
+    """
+    extractor = MeshMeasurementExtractor(gender="neutral")
+    model = load_smpl(gender="neutral", num_betas=10)
+    a_pose = get_a_pose_tensor()
+
+    with torch.no_grad():
+        out = model(body_pose=a_pose)
+        v = out.vertices[0]
+        j = out.joints[0]
+        meas = extractor.extract_measurements(v, j)
+
+    hip_joints_mean_y = (j[1, 1] + j[2, 1]) / 2.0
+    c7_to_hip_joints_cm = float((v[extractor.idx_c7, 1] - hip_joints_mean_y).item()) * 100.0
+    c7_to_pelvis_root_cm = float((v[extractor.idx_c7, 1] - j[0, 1]).item()) * 100.0
+
+    assert abs(c7_to_hip_joints_cm - c7_to_pelvis_root_cm) > 5.0, (
+        "test setup sanity check: pelvis root and hip joints should sit at clearly different heights"
+    )
+
+    reported_garment_len = meas[MeasurementZone.garment_length].item()
+    assert abs(reported_garment_len - c7_to_hip_joints_cm) < 1e-3, (
+        f"garment_length ({reported_garment_len}cm) does not match C7-to-hip-joints "
+        f"({c7_to_hip_joints_cm}cm) -- it appears to use a different bottom reference (e.g. the pelvis root)"
+    )
+
+
 def test_fit_smpl_shape_synthetic_ground_truth():
     """Verify optimization recovers shape parameters close to known synthetic target."""
     model = load_smpl(gender="neutral", num_betas=10)

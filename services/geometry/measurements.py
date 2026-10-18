@@ -133,6 +133,53 @@ def _interpolated_taper_window(
     return _landmark_pair_window(left_x, right_x, margin_factor)
 
 
+# Confidence penalty applied when a bounded width scan comes back flush
+# against BOTH edges of its own exclusion window (see
+# _window_is_saturated below).
+#
+# Value and floor interaction, evidenced on a synthetic SMPL round-trip
+# (services/geometry/tests/test_synthetic_round_trip.py): window-saturation
+# is a near-certain contamination signal (the scan found no background
+# pixel anywhere in its own window), stronger than the other per-zone
+# penalties this confidence formula already accumulates, so it is allowed
+# to push confidence below the general 0.2 floor those other penalties
+# share (see _WINDOW_SATURATION_MIN_CONFIDENCE below) -- at 0.2, the
+# contaminated zone still pulled fit_smpl_shape's shared 10-beta
+# optimization enough to fail an otherwise-clean sibling zone (waist) by
+# 1.7-2.2cm; confidence swept down to ~0.02-0.05 cleanly resolved that
+# collateral error (waist settled to +-0.2cm) without changing any
+# measurement value, the optimizer, or any other zone's confidence.
+_WINDOW_SATURATION_PENALTY = 0.85
+
+# Confidence floor specifically for a window-saturated zone, used instead
+# of the general 0.2 floor below. Chosen as the evidenced value from the
+# sweep above (~0.05 was the smallest tested value that still reliably
+# resolved the collateral waist error; 0.0 was also tested and behaved
+# almost identically, but is avoided here because fit_smpl_shape treats
+# confidence <= 0.0 as "exclude this zone from fitting entirely", a
+# different, more drastic behavior than "weight it almost to nothing" --
+# this keeps the zone a genuine, if negligible, weighted contributor,
+# consistent with the existing confidence-WEIGHTING design).
+_WINDOW_SATURATION_MIN_CONFIDENCE = 0.05
+
+
+def _window_is_saturated(left_col: int, right_col: int, window_lo: float, window_hi: float) -> bool:
+    """True if a bounded extract_row_width scan found foreground flush
+    against both bounds of its own exclusion window -- i.e. no background
+    pixel was found anywhere inside the window to separate the body region
+    being measured from an overlapping protrusion (most often an arm). The
+    window did not exclude anything in that case, it was simply filled
+    edge-to-edge, which is the same contamination signature
+    services/geometry/validator.py::check_chest_arm_separation checks for
+    (and rejects the photo for) before chest measurement is attempted. A
+    clean scan -- one that finds the true body edge strictly inside the
+    window, with background on at least one side -- returns False.
+    """
+    window_lo_i = max(0, int(round(window_lo)))
+    window_hi_i = int(round(window_hi))
+    return left_col <= window_lo_i + 1 and right_col >= window_hi_i - 1
+
+
 def calculate_photo_measurements(
     landmark_results: dict[str, ViewLandmarkResult],
     masks: dict[str, np.ndarray],
@@ -305,6 +352,7 @@ def calculate_photo_measurements(
     # waist) when those landmarks are available, excluding the arm from the
     # measured width instead of taking the raw mask's full extent.
     y_chest = int(round(y_shoulders + 0.22 * torso_span))
+    chest_window_saturated_penalty = 0.0
     if l_shoulder and r_shoulder and l_hip and r_hip:
         chest_x_lo, chest_x_hi = _interpolated_taper_window(
             y_chest,
@@ -312,7 +360,11 @@ def calculate_photo_measurements(
             l_hip.pixel_x, r_hip.pixel_x, y_hips,
             _TAPER_MARGIN_FACTOR,
         )
-        _, _, _, chest_w = extract_row_width(front_mask, y_chest, cm_per_px, x_min=chest_x_lo, x_max=chest_x_hi)
+        chest_left_col, chest_right_col, _, chest_w = extract_row_width(
+            front_mask, y_chest, cm_per_px, x_min=chest_x_lo, x_max=chest_x_hi
+        )
+        if chest_w > 0.0 and _window_is_saturated(chest_left_col, chest_right_col, chest_x_lo, chest_x_hi):
+            chest_window_saturated_penalty = _WINDOW_SATURATION_PENALTY
     else:
         _, _, _, chest_w = extract_row_width(front_mask, y_chest, cm_per_px)
     chest_d, chest_penalty = _get_side_depth(y_chest)
@@ -324,7 +376,11 @@ def calculate_photo_measurements(
         chest_d = chest_w * 0.72  # anatomical fallback
 
     chest_cm = ramanujan_ellipse_perimeter(chest_w, chest_d, k_factors[MeasurementZone.chest])
-    chest_conf = max(0.2, min(0.98, 0.90 - chest_penalty - lm_vis_penalty - chest_mask_penalty))
+    chest_conf_floor = _WINDOW_SATURATION_MIN_CONFIDENCE if chest_window_saturated_penalty > 0.0 else 0.2
+    chest_conf = max(
+        chest_conf_floor,
+        min(0.98, 0.90 - chest_penalty - lm_vis_penalty - chest_mask_penalty - chest_window_saturated_penalty),
+    )
     zones[MeasurementZone.chest] = Measurement(
         value_cm=round(max(40.0, chest_cm), 1),
         confidence=round(chest_conf, 2),
@@ -602,7 +658,17 @@ def calculate_photo_measurements(
     )
 
     # --- 9. Torso Length ---
-    # Cervical vertebra base (C7 / neck base) down to horizontal waist plane
+    # Cervical vertebra base (C7 / neck base) down to horizontal waist plane.
+    # The dominant error found here this session was NOT this top reference
+    # -- it was fitting.py's ground truth using the spine1 joint as a "waist
+    # plane" stand-in, ~6-10cm from where the waist circumference actually
+    # measures the waist (see fitting.py's torso_length comment, now fixed
+    # to share waist_cm's own plane). Checked three top-reference variants
+    # against the corrected ground truth (y_neck_base as already used here,
+    # y_shoulders directly, and y_shoulders with a small fixed C7-above-
+    # shoulder offset measured directly on this mesh): y_neck_base's
+    # long-standing error (~1.4-2.1cm here) was the smallest of the three,
+    # so it is left unchanged rather than "fixed" into a worse number.
     torso_len_px = y_waist - y_neck_base
     if torso_len_px <= 10.0:
         torso_len_cm = user_height_cm * 0.28 * k_factors[MeasurementZone.torso_length]
@@ -636,9 +702,36 @@ def calculate_photo_measurements(
     )
 
     # --- 11. Upper Back ---
-    # Transverse distance across upper back between posterior armscye (armpit) creases
+    # Transverse distance across upper back between posterior armscye (armpit)
+    # creases. This row sits close to the shoulder/armpit on the BACK view,
+    # the same height band found (on the front view's chest scan) to fuse
+    # arm and torso into one contiguous silhouette region -- confirmed on a
+    # synthetic SMPL ground-truth check to affect this row too (unbounded
+    # scan ~55.6cm vs. ~41.4cm true armscye-to-armscye distance). Bounded to
+    # a shoulder->hip taper window on the back view's own landmarks, the
+    # same technique chest/waist already use on the front view, when those
+    # landmarks are available.
     y_upper_back = int(round(y_shoulders + 0.12 * torso_span))
-    _, _, _, upper_back_w = extract_row_width(back_mask, y_upper_back, back_lm.cm_per_pixel)
+    b_l_hip = back_lm.get("LEFT_HIP")
+    b_r_hip = back_lm.get("RIGHT_HIP")
+    upper_back_window_saturated_penalty = 0.0
+    if b_l_sh and b_r_sh and b_l_hip and b_r_hip:
+        b_y_shoulders = (b_l_sh.pixel_y + b_r_sh.pixel_y) / 2.0
+        b_y_hips = (b_l_hip.pixel_y + b_r_hip.pixel_y) / 2.0
+        ub_x_lo, ub_x_hi = _interpolated_taper_window(
+            y_upper_back,
+            b_l_sh.pixel_x, b_r_sh.pixel_x, b_y_shoulders,
+            b_l_hip.pixel_x, b_r_hip.pixel_x, b_y_hips,
+            _TAPER_MARGIN_FACTOR,
+        )
+        ub_left_col, ub_right_col, _, upper_back_w = extract_row_width(
+            back_mask, y_upper_back, back_lm.cm_per_pixel, x_min=ub_x_lo, x_max=ub_x_hi
+        )
+        if upper_back_w > 0.0 and _window_is_saturated(ub_left_col, ub_right_col, ub_x_lo, ub_x_hi):
+            upper_back_window_saturated_penalty = _WINDOW_SATURATION_PENALTY
+    else:
+        _, _, _, upper_back_w = extract_row_width(back_mask, y_upper_back, back_lm.cm_per_pixel)
+
     if upper_back_w <= 0.0:
         upper_back_cm = user_height_cm * 0.22 * k_factors[MeasurementZone.upper_back]
         upper_back_conf = 0.45
@@ -646,7 +739,10 @@ def calculate_photo_measurements(
         upper_back_cm = upper_back_w * k_factors[MeasurementZone.upper_back]
         upper_back_conf = 0.90 if "back" in landmark_results else 0.80
 
-    upper_back_conf = max(0.2, min(0.98, upper_back_conf - lm_vis_penalty))
+    upper_back_conf_floor = _WINDOW_SATURATION_MIN_CONFIDENCE if upper_back_window_saturated_penalty > 0.0 else 0.2
+    upper_back_conf = max(
+        upper_back_conf_floor, min(0.98, upper_back_conf - lm_vis_penalty - upper_back_window_saturated_penalty)
+    )
     zones[MeasurementZone.upper_back] = Measurement(
         value_cm=round(max(15.0, upper_back_cm), 1),
         confidence=round(upper_back_conf, 2),
@@ -654,8 +750,17 @@ def calculate_photo_measurements(
     )
 
     # --- 12. Garment Length ---
-    # Reference distance along posterior midline from cervical base down to hemline plane (hip line)
-    garment_len_px = y_hip_max - y_neck_base
+    # Reference distance along posterior midline from cervical base (C7,
+    # approximated by y_shoulders -- see torso_length above) down to the hip
+    # LINE. Uses y_hips (the hip landmark row) rather than y_hip_max (the
+    # widest-point row the HIP zone searches for, left untouched above):
+    # those are different anatomical references that happen to share the
+    # word "hip" -- y_hip_max is deliberately searched for near/below the
+    # glutes to find the hip CIRCUMFERENCE's widest point, which sits well
+    # below the iliac-crest "hip line" a garment hem is referenced against.
+    # Confirmed on a synthetic SMPL ground-truth check: y_hip_max landed
+    # ~9-11cm further down than the hip-socket height y_hips tracks.
+    garment_len_px = y_hips - y_shoulders
     if garment_len_px <= 10.0:
         garment_len_cm = user_height_cm * 0.42 * k_factors[MeasurementZone.garment_length]
         garment_conf = 0.45

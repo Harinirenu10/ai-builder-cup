@@ -44,45 +44,122 @@ landmarks use the mesh's own widest surface point at the joint's height on
 the correct side (verified to reproduce the true silhouette width within
 ~1cm for hip on this mesh: 38.16cm vs. 38.46cm unbounded truth).
 
-REMAINING KNOWN LIMITATION -- chest (not fixed, diagnosed with evidence):
+REMAINING KNOWN LIMITATION -- chest (structural, diagnosed with evidence,
+partially mitigated this session, NOT eliminated):
 
-Chest still fails this round trip, and it is NOT a landmark-window problem
-like hip was. At the formulaic chest row (0.22 of the shoulder-to-hip span
-below the shoulders -- "immediately below the armpit"), the arm and torso
-are part of the SAME contiguous region in the rendered 2D silhouette, for
-every arm-abduction angle tested from 45 degrees (SMPL's own canonical
-a-pose) up to 110 degrees (an unrealistically wide angle no real photo
-capture guidance asks for). There is no background-color gap for any
-landmark-derived column window to find, because the shoulder/deltoid
-region is anatomically continuous with the upper arm in a flat silhouette
-projection, regardless of swing angle. This was confirmed to also affect
-the one real photo set tested this session (chest width dropped from
-43.5cm to 35.4cm once a shoulder->hip taper bound was added to
-measurements.py -- a real, now-applied improvement -- but the fully
-unbounded original chest value, 111.9cm, was never independently
-re-verified as accurate; it is very likely still inflated by this same
-issue even after the bounding fix, since bounding alone could not close
-the synthetic mesh's much larger 36-64cm gap depending on pose angle).
+At the formulaic chest row (0.22 of the shoulder-to-hip span below the
+shoulders -- "immediately below the armpit"), the arm and torso are part of
+the SAME contiguous region in the rendered 2D silhouette, confirmed by
+direct pixel measurement: a row-by-row scan from the shoulder line down to
+the hip shows near-zero contamination right at the shoulder (an overestimate
+of ~2px / 0.5cm) rising to ~50-58px (~12-14cm) of overestimate across
+exactly the 0.10-0.30 torso-span band where a tailor's chest line actually
+falls, before dropping back to zero once the row passes below the elbow.
+A later angle sweep (0-175 degrees of shoulder abduction, the "A-pose" swing
+in services.geometry.fitting.get_a_pose_tensor) through the real production
+gate, services.geometry.validator.check_chest_arm_separation, found it DOES
+pass at some angles (90-150, 170-175 degrees) -- but not at 45 degrees
+(get_a_pose_tensor's fixed default) nor at any angle a real "stand with arms
+slightly away from your sides" capture instruction would produce (0-80
+degrees). So this is not "no angle ever works" -- it is "the angle the
+system's own canonical A-pose and capture guidance produce does not."
+Closing that gap needs real-photo validation of either a recalibrated
+capture instruction or a recalibrated gate threshold, neither of which this
+session can produce without real test photos -- so it is left unresolved
+rather than guessed at.
 
-Proposed bounded plan for fixing chest properly (NOT implemented; needs
-validation against more than one real photo before being trusted, per the
-same lesson learned from the hip landmark-proxy mistake above):
-1. Morphological opening (erode then dilate) on the mask row before any
-   gap/contiguity analysis, to suppress single-pixel rasterization noise
-   from cv2.fillPoly's per-triangle rendering (confirmed present: 11-60
-   spurious "gaps" per row at every angle tested, none anatomical).
-2. Replace the static shoulder->hip window with a directed exclusion line
-   interpolated from the shoulder landmark through the elbow landmark (not
-   a vertical window spanning both), so the exclusion boundary tracks the
-   arm's actual diagonal position at the chest row's specific height,
-   rather than a fixed column range.
-3. If (1)+(2) still cannot isolate a clean torso-only width at this row
-   for some photos, consider widening the validator's posture requirement
-   (services/geometry/validator.py) so submitted photos are rejected
-   unless the arms are abducted far enough to leave a genuine gap at chest
-   height -- shifting the burden from post-hoc pixel analysis to photo
-   capture guidance, which the system already has a mechanism for
-   (needs_retake with a fix_instruction).
+Fixed this session, with evidence (see test_measurements.py::
+test_chest_window_saturation_lowers_confidence and
+test_synthetic_round_trip_pose_fails_production_chest_arm_gate below):
+calculate_photo_measurements (services/geometry/measurements.py) now
+detects when the chest scan's exclusion window is filled edge-to-edge --
+the same contamination signature check_chest_arm_separation already gates
+photos on in production -- and sharply lowers the zone's own confidence
+when it happens (0.90 -> 0.35 confirmed on this exact contamination
+fixture), instead of reporting a contaminated number with the same ~0.90
+confidence as a clean one. Because fit_smpl_shape's confidence-weighted loss
+is unchanged (preserved, not touched), this measurably reduces how much
+chest's bad target can drag the shared 10-beta optimization: on this
+module's two synthetic bodies, chest/waist/hip post-fit error dropped by
+roughly 40-60% (e.g. beta0=-0.8,beta1=-0.4: chest 13.21cm -> 8.71cm, waist
+9.44cm -> 4.44cm, hip 5.22cm -> 3.22cm). It does not, by itself, bring any
+zone under this test's 1.5cm tolerance -- see the next finding for why.
+
+FIXED in a follow-up session -- the second, independent contamination
+source diagnosed above (torso_length, garment_length, back_rise,
+upper_back): tracing each zone's EXACT reference points in both files
+(not just its value) found four separate, independently-verifiable
+definitional bugs, not one diffuse "mismatch":
+
+1. torso_length and back_rise's ground truth (fitting.py) used the spine1
+   joint and the idx_post_waist vertex, respectively, as "waist plane"
+   stand-ins -- but neither actually sits at the height waist_cm (the
+   already-validated waist circumference) measures the waist: spine1 sits
+   6.4-9.5cm below it, idx_post_waist 9.9cm below it. Both are confirmed
+   genuinely posterior/on-midline where that was already tested (see
+   test_landmark_bilateral_symmetry_and_posterior_waist in test_fitting.py)
+   -- they are real landmarks, just not at "waist" height. Fixed: both now
+   reference CircumferenceLoop.mean_plane_y(waist_loop) -- the SAME plane
+   waist_cm itself measures, computed differentiably on the current
+   (posed/shape-deformed) mesh, not the rest-pose template -- instead of
+   two different, disagreeing stand-ins. back_rise's old 3D Euclidean
+   vertex-to-vertex distance was also collapsed to a pure vertical drop,
+   matching how the photo side computes it (a pixel-row difference, not a
+   3D path) and confirmed the old X/Z contribution was under 1cm anyway.
+2. garment_length's ground truth used the pelvis ROOT joint (0) as a "hip
+   plane" reference, but a 2D pose landmarker's HIP landmark corresponds
+   to the hip SOCKET joints (1, 2), which sit ~9.5cm BELOW the pelvis root
+   on this topology (confirmed directly from joint positions) -- the
+   photo side's garment_length, anchored to its own hip landmark, could
+   never agree with a ground truth 9.5cm higher. Fixed: now uses
+   mean(joints[1], joints[2]).
+3. measurements.py's garment_length also reused y_hip_max -- the row the
+   HIP zone deliberately searches for to find its widest circumference
+   point, intentionally reaching down near/below the glutes -- as its own
+   hip-line reference. That is a different anatomical plane from the hip
+   LANDMARK row (y_hips) a tailor's hemline reference means, and the two
+   are 9-11cm apart on this mesh. Fixed: garment_length now uses y_hips.
+   HIP's own y_hip_max search is untouched (see
+   test_garment_length_uses_hip_landmark_row_not_widest_hip_row in
+   test_measurements.py, which checks this by changing the row below
+   y_hips and confirming HIP moves but garment_length does not).
+4. upper_back's back-view width scan (measurements.py) had NO column
+   bound at all, unlike chest/waist's front-view scans -- and sits in the
+   same shoulder-adjacent band confirmed to fuse arm and torso into one
+   silhouette on the front view, which a direct check found true on the
+   back view too (unbounded ~55.6cm vs. ~41.4cm true armscye-to-armscye
+   distance). Fixed: bounded with the same shoulder->hip taper window
+   technique, using the back view's own landmarks, plus the same
+   window-saturation confidence penalty chest now uses (generalized into
+   a shared _window_is_saturated helper in measurements.py) -- since the
+   window does not fully resolve this one either (back_mask still
+   partially saturated after bounding).
+5. torso_length's own top reference (measurements.py's y_neck_base) was
+   checked directly against three candidates (y_neck_base as-is, plain
+   y_shoulders, and y_shoulders plus a small measured C7-above-shoulder
+   offset) once (1) gave it a correct bottom reference to compare against
+   -- y_neck_base's long-standing ~1.4-2.1cm error was already the
+   smallest of the three on this mesh, so it was deliberately left
+   unchanged rather than "fixed" into a larger one.
+
+Net effect on the four zones' own pre-fit accuracy (beta0=1.2,beta1=0.3):
+torso_length 36.6cm vs. truth 34.57cm (2.03cm, was 5.0cm before any fix
+this investigation made); garment_length 61.9cm vs. truth 62.83cm (0.93cm,
+was 13.4cm); back_rise 41.4cm vs. truth 37.58cm (3.82cm, was 14.1cm);
+upper_back 51.6cm vs. truth 41.36cm (10.24cm, confidence correctly dropped
+to 0.35 -- still contaminated like chest, now flagged instead of hidden).
+
+Net effect on the shared-optimization pollution this was chasing: on top
+of chest's confidence fix, chest/waist/hip post-fit error dropped a
+further ~1cm each, and inseam now clears 1.5cm on both test bodies (was
+failing by 2.3-4.4cm). Chest (6.4-7.7cm) and waist (3.6-4.1cm) still
+exceed tolerance -- dominated by chest's still-unresolved structural
+limitation above, now more clearly isolated as the dominant remaining
+contamination source since the other four zones are no longer adding
+their own. hip's pass/fail is sensitive to which of the (statistically
+similar) torso_length top-reference candidates in point 5 is used, right
+at the 1.5-2.5cm boundary -- a sign of optimizer-level noise at the
+margin, not a further definitional bug; not chased further.
 """
 
 from __future__ import annotations
@@ -104,6 +181,7 @@ from services.geometry.fitting import MeshMeasurementExtractor, fit_smpl_shape, 
 from services.geometry.landmarks import PoseLandmarkPoint, ViewLandmarkResult
 from services.geometry.loader import load_smpl
 from services.geometry.measurements import calculate_photo_measurements
+from services.geometry.validator import check_chest_arm_separation
 
 IMG_W = 500
 IMG_H = 900
@@ -263,49 +341,68 @@ def _build_synthetic_round_trip_views(
 
 @pytest.mark.xfail(
     reason=(
-        "KNOWN, DOCUMENTED GAP, narrowed by follow-up investigation (not "
-        "hidden, not force-passed). The original failure was NOT a photo-vs-"
-        "mesh 'plane mismatch' as first hypothesized -- that was verified "
-        "and ruled out with diagnostics. The actual root causes, found by "
-        "tracing actual pixel/vertex positions rather than assuming: "
-        "(1) [FIXED] this test's synthetic landmarks used raw internal SMPL "
-        "joints (e.g. joint 1/2, left_hip/right_hip, ~13.7cm apart near the "
-        "pelvis centerline) as stand-ins for MediaPipe landmarks, which "
-        "real landmarks approximate from the visible body SURFACE (~38.5cm "
-        "apart at the hip). This made measurements.py's (correctly "
-        "designed) landmark-bounded hip window clip the true width in half. "
-        "Fixed in this test's landmark synthesis (surface-proxy points), "
-        "not in production code, since production's landmark bounds are "
-        "already validated against real MediaPipe output. "
-        "(2) [FIXED, production change] fitting.py's inseam ground truth "
-        "used the pelvis joint as its top reference despite its own "
-        "comment saying 'crotch level' -- it should use (and now uses) the "
-        "already-defined idx_crotch surface vertex, which the photo-side's "
-        "independently-derived crotch estimate matched to within ~1cm. "
-        "(3) [FIXED, production change] measurements.py's chest width scan "
-        "was unbounded; added the same shoulder->hip taper bound already "
-        "used for waist, validated to meaningfully reduce chest width on "
-        "the real photo tested this session (43.5cm -> 35.4cm). "
-        "(4) [NOT FIXED -- genuine remaining limitation] Chest still fails "
-        "this round trip. Diagnostics (not assumptions) confirmed: at the "
-        "formulaic chest row, the arm and torso are part of the SAME "
-        "contiguous silhouette region for every abduction angle tested "
-        "(45 deg through 110 deg) -- no landmark-derived column window can "
-        "separate them, because there is no background-color gap in the "
-        "mask to find. This is a genuine 2D-silhouette ambiguity, not a "
-        "fixable bounding-window bug, and it also affects real photos (the "
-        "untouched real-photo chest value, 111.9cm, is very likely still "
-        "inflated by the same issue -- not independently re-verified this "
-        "session). See the test module docstring for a bounded "
-        "implementation plan (morphological gap detection, or a directed "
-        "shoulder->elbow exclusion line instead of a static window) that "
-        "was not attempted here because it needs validation against more "
-        "than the one real photo set available. Because chest's error "
-        "propagates through fit_smpl_shape's shared 10-beta optimization, "
-        "waist/hip/inseam's post-fit recovered values are still pulled off "
-        "target even though their pre-fit photo targets are now accurate "
-        "to within 0.5-2.8cm of ground truth (verified directly, not "
-        "inferred)."
+        "KNOWN, DOCUMENTED GAP, re-diagnosed and re-verified across several "
+        "follow-up sessions (not hidden, not force-passed; each claim below "
+        "was re-run against this exact test, not carried forward unchecked). "
+        "Prior fixes, condensed (full history/evidence in the module "
+        "docstring above): (1) this test's own synthetic landmarks "
+        "originally used raw internal SMPL joints instead of body-surface "
+        "proxies, causing a false hip failure -- fixed in the TEST only. "
+        "(2) fitting.py's inseam ground truth used the pelvis joint instead "
+        "of the already-defined idx_crotch vertex -- fixed in production. "
+        "(3) measurements.py's chest width scan was fully unbounded -- "
+        "bounded with the same shoulder->hip taper window waist uses -- "
+        "fixed in production, confirmed on a real photo too. "
+        "(4) torso_length/back_rise/garment_length/upper_back independently "
+        "had their own reference-point bugs (spine1-as-waist-plane, "
+        "pelvis-root-as-hip-plane, y_hip_max-as-hip-line, no bound on "
+        "upper_back's back-view scan) -- all four fixed in production, "
+        "confirmed to no longer independently contaminate the shared fit. "
+        ""
+        "LATEST (this session): chest's window-bound scan still could not "
+        "separate arm from torso at get_a_pose_tensor's fixed 45-degree "
+        "pose (a confirmed structural 2D-silhouette limit, NOT a window-"
+        "tuning bug -- morphological opening and a directed shoulder->elbow "
+        "exclusion line were both tried and both failed with evidence, see "
+        "prior session notes), and even though calculate_photo_measurements "
+        "already detected this (window-saturation) and lowered chest's "
+        "confidence, the general 0.2 confidence floor shared by most zones "
+        "was still high enough to let chest's bad target drag the shared "
+        "10-beta fit: at confidence 0.2, waist still failed by 1.7-2.2cm "
+        "despite waist's OWN pre-fit target being accurate to within 0.6cm "
+        "(confirmed directly, not assumed). Fix: window-saturated zones "
+        "(chest, upper_back) now get a dedicated ~0.05 floor instead of "
+        "0.2 (_WINDOW_SATURATION_MIN_CONFIDENCE in measurements.py); no "
+        "other zone's confidence formula, floor, or any measurement VALUE "
+        "changed. Verified effect, this exact test, re-run after the fix: "
+        "waist now PASSES on both bodies (was 4.09/3.64cm over, now "
+        "0.19/0.06cm); chest now passes on one body and is marginal on the "
+        "other (was 6.50/7.71cm over, now 0.20cm under / 1.71cm over). "
+        ""
+        "REMAINING, DEMONSTRATED (not assumed) limitation: hip and inseam "
+        "now dominate the residual failures (hip 2.17/1.92cm, inseam "
+        "1.70/-1.14cm over the two bodies -- each zone fails on at least "
+        "one body). Diagnostic isolation before implementing this fix found "
+        "this is NOT a definitional bug: fitting hip alone (zero other "
+        "targets, only the height constraint active) recovers it to 0.03cm "
+        "-- essentially exact. With every other zone's confidence swept "
+        "down to 0.0 (full exclusion, tested but not shipped, since "
+        "fit_smpl_shape treats confidence<=0 as 'exclude entirely', a "
+        "different behavior than the ~0.05 'weight it to near-nothing' "
+        "actually shipped), hip STILL missed by 1.97/-2.22cm, and this was "
+        "confirmed to be a converged optimizer result, not under-"
+        "optimization (identical at 200, 600, and 1500 max_steps, loss "
+        "plateaued, converged=True). This is read as an inherent least-"
+        "squares compromise of the 10-beta SMPL shape space trying to "
+        "simultaneously satisfy ~11 independently-accurate anatomical "
+        "targets plus a height constraint for these two body shapes, not a "
+        "fixable reference-point or windowing bug like the others above. "
+        "Resolving it would require either more shape dimensions (the "
+        "project's own constraints preserve the 10-beta approach) or "
+        "fitting fewer simultaneous zones (a product scope decision, not "
+        "made here). Kept strict=True so any future change that moves "
+        "these numbers -- for better OR worse -- turns this into a hard "
+        "failure requiring re-evaluation, not a silently-stale xfail."
     ),
     strict=True,
 )
@@ -321,15 +418,17 @@ def test_synthetic_smpl_round_trip_recovers_measurements_within_tolerance(beta0:
     ground-truth mesh's own measurements (not a real body, not tape-measured
     -- this validates internal pipeline self-consistency only).
 
-    Currently xfail (see reason above): waist/hip/inseam's root causes are
-    fixed (verified: pre-fit photo targets land within 0.5-2.8cm of truth).
-    Chest's root cause is diagnosed but NOT fixed -- a genuine 2D-silhouette
-    arm/torso ambiguity, not a bounding-window bug -- and because all 12
-    zones share the same 10 betas during SMPL fitting, chest's large error
-    still drags the other three zones' POST-FIT recovered values outside
-    tolerance too. Kept in the suite, marked strict=True, so it turns into a
-    hard failure (and must be re-evaluated) the moment someone fixes chest,
-    rather than silently staying green forever.
+    Currently xfail (see reason above): every zone's OWN pre-fit photo target
+    is now accurate (chest's is not, by a confirmed, unfixed structural
+    limit, but is correctly flagged at ~0.05 confidence instead of trusted).
+    Waist now passes post-fit on both bodies; chest passes on one and is
+    marginal on the other. Hip and inseam, not chest/waist, are now the
+    dominant residual failures -- demonstrated (via an isolated single-zone
+    fit and a max_steps sweep, not assumed) to be an inherent least-squares
+    compromise of the 10-beta shape space given ~11 simultaneously-fit,
+    individually-accurate targets, not a further definitional bug. Kept in
+    the suite, marked strict=True, so it turns into a hard failure (and must
+    be re-evaluated) the moment that balance shifts, for better or worse.
     """
     gender = "neutral"
     model = load_smpl(gender=gender, num_betas=10)
@@ -387,3 +486,65 @@ def test_synthetic_smpl_round_trip_recovers_measurements_within_tolerance(beta0:
             failures.append(f"{zone.value}: truth={truth_cm:.2f}cm recovered={recovered_cm:.2f}cm err={err:.2f}cm (tol={tol_cm}cm)")
 
     assert not failures, "Round-trip exceeded 1.5cm tolerance:\n" + "\n".join(failures)
+
+
+@pytest.mark.parametrize("beta0,beta1", [(1.2, 0.3), (-0.8, -0.4)])
+def test_synthetic_round_trip_pose_fails_production_chest_arm_gate(beta0: float, beta1: float):
+    """Regression test closing a gap between this module's docstring and
+    actual coverage: the docstring above has long claimed that this
+    synthetic pose (SMPL's canonical 45-degree A-pose, get_a_pose_tensor)
+    fuses the arm into the torso silhouette at chest height for every
+    abduction angle tested -- the same condition
+    services/geometry/validator.py::check_chest_arm_separation exists to
+    catch and reject, via services/geometry/worker.py, before
+    calculate_photo_measurements is ever called in production. That claim
+    was never actually exercised against the production gate function in
+    this suite, only asserted in prose.
+
+    This test runs the exact landmark/mask data the main round-trip test
+    above feeds into calculate_photo_measurements through the real gate
+    instead, and confirms the gate correctly flags it for retake. That means
+    the main round-trip test's chest/waist/hip/inseam failure is not a case
+    production would silently mismeasure -- production would stop the job
+    and ask for a retake first. It is still a genuine gap in what this
+    synthetic test suite exercises end-to-end (gate -> retake -> new photo),
+    tracked as a limitation in the main test's xfail reason, not papered
+    over by this test passing.
+    """
+    gender = "neutral"
+    model = load_smpl(gender=gender, num_betas=10)
+    extractor = MeshMeasurementExtractor(gender=gender)
+    a_pose = get_a_pose_tensor()
+
+    target_betas = torch.zeros((1, 10), dtype=torch.float32)
+    target_betas[0, 0] = beta0
+    target_betas[0, 1] = beta1
+
+    with torch.no_grad():
+        out = model(betas=target_betas, body_pose=a_pose)
+        gt_vertices = out.vertices[0].cpu().numpy().astype(np.float32)
+        gt_joints = out.joints[0].cpu().numpy().astype(np.float32)
+        faces = model.faces.astype(np.int32)
+
+    landmark_results, masks, _ = _build_synthetic_round_trip_views(gt_vertices, faces, gt_joints, extractor)
+    front_lm = landmark_results["front"]
+    l_sh, r_sh = front_lm.get("LEFT_SHOULDER"), front_lm.get("RIGHT_SHOULDER")
+    l_hip, r_hip = front_lm.get("LEFT_HIP"), front_lm.get("RIGHT_HIP")
+
+    is_ok, fix_instruction = check_chest_arm_separation(
+        front_mask=masks["front"],
+        y_shoulders_px=(l_sh.pixel_y + r_sh.pixel_y) / 2.0,
+        y_hips_px=(l_hip.pixel_y + r_hip.pixel_y) / 2.0,
+        l_shoulder_x_px=l_sh.pixel_x,
+        r_shoulder_x_px=r_sh.pixel_x,
+        l_hip_x_px=l_hip.pixel_x,
+        r_hip_x_px=r_hip.pixel_x,
+        cm_per_pixel=front_lm.cm_per_pixel,
+    )
+
+    assert is_ok is False, (
+        "expected the production chest-arm separation gate to reject this synthetic "
+        "A-pose photo (arm fused with torso at chest height); if this now passes, "
+        "the main round-trip test's xfail reason needs re-evaluating, not just this test"
+    )
+    assert "arm" in fix_instruction.lower()

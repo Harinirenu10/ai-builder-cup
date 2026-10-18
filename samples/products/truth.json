@@ -1,0 +1,184 @@
+{
+  "demo_threads_tee": {
+    "category": "tshirt",
+    "chart_type": "garment",
+    "unit": "cm",
+    "circumference_basis": "full",
+    "pre_shrunk": true,
+    "reviews_read": 6,
+    "sizes": {
+      "S": {
+        "chest": 98,
+        "garment_length": 70,
+        "shoulder_width": 45
+      },
+      "M": {
+        "chest": 104,
+        "garment_length": 72,
+        "shoulder_width": 47
+      },
+      "L": {
+        "chest": 110,
+        "garment_length": 74,
+        "shoulder_width": 49
+      },
+      "XL": {
+        "chest": 116,
+        "garment_length": 76,
+        "shoulder_width": 51
+      }
+    },
+    "review_counts": {
+      "chest/runs_large": 3,
+      "garment_length/short": 1,
+      "color_mismatch": 1,
+      "shrinkage": 0
+    }
+  },
+  "demo_threads_denim": {
+    "category": "jeans",
+    "chart_type": "body",
+    "unit": "in",
+    "circumference_basis": "full",
+    "pre_shrunk": false,
+    "reviews_read": 6,
+    "sizes": {
+      "30": {
+        "waist": 30.5,
+        "hip": 38.5,
+        "inseam": 32
+      },
+      "32": {
+        "waist": 32.5,
+        "hip": 40.5,
+        "inseam": 32
+      },
+      "34": {
+        "waist": 34.5,
+        "hip": 42.5,
+        "inseam": 32
+      },
+      "36": {
+        "waist": 36.5,
+        "hip": 44.5,
+        "inseam": 32
+      }
+    },
+    "review_counts": {
+      "waist/tight_or_runs_small": 3,
+      "inseam/long": 2,
+      "shrinkage": 2,
+      "color_mismatch": 0
+    }
+  },
+  "demo_threads_overshirt": {
+    "category": "jacket",
+    "chart_type": "garment",
+    "unit": "cm",
+    "circumference_basis": "flat",
+    "pre_shrunk": null,
+    "reviews_read": 5,
+    "sizes": {
+      "S": {
+        "chest": 53,
+        "sleeve_length": 64,
+        "garment_length": 72,
+        "shoulder_width": 47
+      },
+      "M": {
+        "chest": 56,
+        "sleeve_length": 65,
+        "garment_length": 74,
+        "shoulder_width": 49
+      },
+      "L": {
+        "chest": 59,
+        "sleeve_length": 66,
+        "garment_length": 76,
+        "shoulder_width": 51
+      },
+      "XL": {
+        "chest": 62,
+        "sleeve_length": 67,
+        "garment_length": 78,
+        "shoulder_width": 53
+      }
+    },
+    "review_counts": {
+      "sleeve_length/short": 2,
+      "chest/tight": 2,
+      "color_mismatch": 1,
+      "shrinkage": 0
+    }
+  },
+  "taylorstitch_shop_shirt": {
+    "source": "public page saved 2026-10-16; chart values transcribed by hand from its 'Garment Size Chart' (inches); size labels are printed as 'jacket size - letter', e.g. '36 – XS'",
+    "category": "shirt",
+    "chart_type": "garment",
+    "unit": "in",
+    "circumference_basis": "full",
+    "pre_shrunk": null,
+    "reviews_read": 0,
+    "sizes": {
+      "36 – XS": {
+        "chest": 40,
+        "neck": 16.5,
+        "shoulder_width": 17.25,
+        "sleeve_length": 33,
+        "garment_length": 27.75
+      },
+      "38 – S": {
+        "chest": 42,
+        "neck": 17,
+        "shoulder_width": 18,
+        "sleeve_length": 33.75,
+        "garment_length": 28.5
+      },
+      "40 – M": {
+        "chest": 44,
+        "neck": 17.5,
+        "shoulder_width": 18.75,
+        "sleeve_length": 34.5,
+        "garment_length": 29.25
+      },
+      "42 – L": {
+        "chest": 46,
+        "neck": 18,
+        "shoulder_width": 19.5,
+        "sleeve_length": 35.5,
+        "garment_length": 30
+      },
+      "44 – XL": {
+        "chest": 49,
+        "neck": 18.5,
+        "shoulder_width": 20.5,
+        "sleeve_length": 36.5,
+        "garment_length": 30.75
+      },
+      "46 – XXL": {
+        "chest": 52,
+        "neck": 19,
+        "shoulder_width": 21.5,
+        "sleeve_length": 37.125,
+        "garment_length": 31.75
+      }
+    },
+    "review_counts": {
+      "note": "review widget not rendered in the saved page; only a 'Customers say this fits' filter list"
+    }
+  },
+  "vistaprint_gildan_polo": {
+    "source": "public page saved 2026-10-16; the saved page has no readable size chart (it is not in the page text)",
+    "category": "tshirt",
+    "chart_type": null,
+    "unit": null,
+    "circumference_basis": "full",
+    "pre_shrunk": null,
+    "reviews_read": 5,
+    "sizes": {},
+    "review_counts": {
+      "overall_runs_small_slim_fit": 1,
+      "note": "one reviewer says sizes are small (XXL); others do not discuss fit"
+    }
+  }
+}

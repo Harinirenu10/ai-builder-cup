@@ -1,0 +1,20 @@
+# Alterations a tailor can do. Easy zones only. Every number is a starting value to tune.
+
+rounding_step_cm: 0.5   # TUNE
+min_alteration_cm: 0.5  # TUNE  smaller changes are not suggested
+
+# zone -> action to reduce the measurement / action to increase it.
+# max_cm is the most the tailor can change (shortening is limited by fabric left to fold; letting out by seam allowance).
+actions:
+  sleeve_length:
+    decrease: {action: shorten_sleeves, text: "Shorten sleeves {cm} cm", max_cm: 10.0}  # TUNE
+    increase: {action: lengthen_sleeves, text: "Lengthen sleeves {cm} cm", max_cm: 2.5} # TUNE
+  garment_length:
+    decrease: {action: shorten_hem, text: "Shorten hem {cm} cm", max_cm: 15.0}          # TUNE
+    increase: {action: lengthen_hem, text: "Lengthen hem {cm} cm", max_cm: 3.0}         # TUNE
+  inseam:
+    decrease: {action: shorten_inseam, text: "Shorten inseam {cm} cm", max_cm: 12.0}    # TUNE
+    increase: {action: lengthen_inseam, text: "Lengthen inseam {cm} cm", max_cm: 3.0}   # TUNE
+  waist:
+    decrease: {action: take_in_waist, text: "Take in waist {cm} cm", max_cm: 6.0}       # TUNE
+    increase: {action: let_out_waist, text: "Let out waist {cm} cm", max_cm: 3.0}       # TUNE

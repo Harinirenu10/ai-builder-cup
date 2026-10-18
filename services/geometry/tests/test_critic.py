@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from unittest.mock import patch
 
+import time
 import numpy as np
 import pytest
 
@@ -440,6 +441,46 @@ def test_critic_loop_llm_exception_handled_safely():
     assert final_fit == initial_fit
 
 
+def test_critic_loop_timeout_marked_unavailable_not_fabricated_or_hung():
+    """Regression test for the real demo symptom: a critic call that times out
+    (TimeoutError, the exact exception shape urllib.request.urlopen raises on
+    OLLAMA_TIMEOUT_S) must not hang the refinement loop, must not be reported as
+    a fit failure, and must not fabricate a fake critic success -- it must stop
+    refining after this round and return the already-computed, already-valid
+    initial_fit as-is, with the round clearly marked unavailable (not a generic
+    'error' label that could be confused with the fit itself having failed).
+    """
+    lm_results, photo_masks, photos_rgb = _create_synthetic_test_context()
+    target_measurements = Measurements(zones={})
+    initial_fit = fit_smpl_shape(target_measurements, target_height_cm=175.0, max_steps=5)
+
+    def mock_critic_times_out(overlays, meas):
+        raise TimeoutError("The read operation timed out")
+
+    final_fit, round_logs, _ = run_critic_refinement_loop(
+        initial_fit=initial_fit,
+        target_measurements=target_measurements,
+        target_height_cm=175.0,
+        gender="neutral",
+        landmark_results=lm_results,
+        photo_masks=photo_masks,
+        photos_rgb=photos_rgb,
+        critic_llm_fn=mock_critic_times_out,
+        max_rounds=5,
+    )
+
+    # Stops after the first unavailable round rather than burning all 5 rounds'
+    # worth of timeouts against a backend that is clearly not responding.
+    assert len(round_logs) == 1
+    assert round_logs[0].accepted is False
+    assert "unavailable" in round_logs[0].critic_notes.lower()
+    assert "read operation timed out" in round_logs[0].critic_notes
+    # The already-computed, already-valid fit is returned unchanged -- not discarded,
+    # not replaced by a fabricated "improved" result.
+    assert final_fit == initial_fit
+    assert final_fit.is_valid
+
+
 def test_critic_loop_default_path_calls_generate_json_with_correct_signature():
     """Regression test: when no critic_llm_fn is injected (the real production
     code path used by the actual worker, never exercised by the other tests
@@ -612,4 +653,46 @@ def test_critic_loop_without_storage_client_leaves_overlay_urls_empty():
     )
 
     assert round_logs[0].overlay_urls == {}
+
+
+def test_critic_loop_strict_overall_timeout_aborts_slow_critic_and_preserves_fit():
+    """Regression test: when critic review hangs or times out repeatedly (e.g. repeated
+    read timeouts on attempts 1 and 2), the strict overall timeout (critic_timeout_s)
+    must abort the critic review promptly, mark the round unavailable with a descriptive
+    timeout note, and preserve the already-computed 3D fit without blocking indefinitely.
+    """
+    lm_results, photo_masks, photos_rgb = _create_synthetic_test_context()
+    target_measurements = Measurements(zones={})
+    initial_fit = fit_smpl_shape(target_measurements, target_height_cm=175.0, max_steps=5)
+
+    def slow_critic_simulating_repeated_timeouts(overlays, meas):
+        # Simulate an unresponsive critic or slow retry loop
+        time.sleep(1.5)
+        return CriticReport(regions=[], stop=True, summary="Late critic report.")
+
+    t0 = time.time()
+    final_fit, round_logs, _ = run_critic_refinement_loop(
+        initial_fit=initial_fit,
+        target_measurements=target_measurements,
+        target_height_cm=175.0,
+        gender="neutral",
+        landmark_results=lm_results,
+        photo_masks=photo_masks,
+        photos_rgb=photos_rgb,
+        critic_llm_fn=slow_critic_simulating_repeated_timeouts,
+        max_rounds=5,
+        critic_timeout_s=0.15,
+    )
+    elapsed = time.time() - t0
+
+    # Strict timeout limit enforced: stopped around 0.15s, not after 1.5s
+    assert elapsed < 1.0, f"Critic loop took {elapsed:.2f}s; overall timeout was not enforced"
+    assert len(round_logs) == 1
+    assert round_logs[0].accepted is False
+    assert "unavailable" in round_logs[0].critic_notes.lower()
+    assert "read operation timed out" in round_logs[0].critic_notes
+    assert "overall limit 0.1s exceeded" in round_logs[0].critic_notes or "exceeded" in round_logs[0].critic_notes
+    # Preserves already-computed 3D fit as-is
+    assert final_fit == initial_fit
+    assert final_fit.is_valid
 

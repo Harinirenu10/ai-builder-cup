@@ -18,9 +18,11 @@ Refinement rules (Prompt 1 specification):
 
 from __future__ import annotations
 
+import concurrent.futures
 import datetime
 import logging
 import math
+import os
 import time
 from typing import Any, Callable
 import cv2
@@ -195,6 +197,7 @@ def run_critic_refinement_loop(
     min_iou_delta: float = 0.002,
     storage_client: Any | None = None,
     overlay_path_prefix: str | None = None,
+    critic_timeout_s: float | None = None,
 ) -> tuple[FitResult, list[RoundLogDocument], dict[str, np.ndarray]]:
     """Execute iterative Gemini multimodal critic refinement loop.
 
@@ -304,49 +307,86 @@ def run_critic_refinement_loop(
         critic_notes = ""
         critic_report: CriticReport | None = None
 
-        try:
-            if critic_llm_fn is not None:
-                critic_report = critic_llm_fn(best_overlays, best_measurements)
-            else:
-                from fitcore.llm import generate_json
-                critic_system = (
-                    "You are an expert fashion photogrammetry critic evaluating a 3D digital twin avatar. "
-                    "Compare the magenta mesh silhouette outline against the cyan photo segmentation outline "
-                    "across the provided views. Identify regional discrepancies, attribute their causes "
-                    "(model_error, loose_clothing, pose, occlusion, or hair), and provide an objective summary."
-                )
-                measurement_table = "\n".join(
-                    f"{zone.value}: {m.value_cm} cm (confidence {m.confidence})"
-                    for zone, m in best_measurements.zones.items()
-                )
-                critic_parts: list[Any] = [
-                    "Review the attached orthogonal view overlays (one per labeled view) and "
-                    "critique the mesh-vs-photo silhouette fit per region.\n\n"
-                    "Current measurement table (photo/fit-derived target values the mesh is being "
-                    "fitted to), for context on which regions may already be under-trusted:\n"
-                    f"{measurement_table}"
-                ]
-                for v in views:
-                    critic_parts.append(f"View: {v}")
-                    overlay_bgr = cv2.cvtColor(best_overlays[v], cv2.COLOR_RGB2BGR)
-                    ok, encoded = cv2.imencode(".jpg", overlay_bgr)
-                    if ok:
-                        critic_parts.append(encoded.tobytes())
+        timeout_limit = (
+            critic_timeout_s
+            if critic_timeout_s is not None
+            else float(os.environ.get("CRITIC_TIMEOUT_S", "25.0"))
+        )
 
-                critic_report = generate_json(
-                    role="pro",
-                    parts=critic_parts,
-                    schema=CriticReport,
-                    system=critic_system,
-                )
+        def _get_critic_report() -> CriticReport | None:
+            if critic_llm_fn is not None:
+                return critic_llm_fn(best_overlays, best_measurements)
+            from fitcore.llm import generate_json
+            critic_system = (
+                "You are an expert fashion photogrammetry critic evaluating a 3D digital twin avatar. "
+                "Compare the magenta mesh silhouette outline against the cyan photo segmentation outline "
+                "across the provided views. Identify regional discrepancies, attribute their causes "
+                "(model_error, loose_clothing, pose, occlusion, or hair), and provide an objective summary."
+            )
+            measurement_table = "\n".join(
+                f"{zone.value}: {m.value_cm} cm (confidence {m.confidence})"
+                for zone, m in best_measurements.zones.items()
+            )
+            critic_parts: list[Any] = [
+                "Review the attached orthogonal view overlays (one per labeled view) and "
+                "critique the mesh-vs-photo silhouette fit per region.\n\n"
+                "Current measurement table (photo/fit-derived target values the mesh is being "
+                "fitted to), for context on which regions may already be under-trusted:\n"
+                f"{measurement_table}"
+            ]
+            for v in views:
+                critic_parts.append(f"View: {v}")
+                overlay_bgr = cv2.cvtColor(best_overlays[v], cv2.COLOR_RGB2BGR)
+                ok, encoded = cv2.imencode(".jpg", overlay_bgr)
+                if ok:
+                    critic_parts.append(encoded.tobytes())
+
+            return generate_json(
+                role="pro",
+                parts=critic_parts,
+                schema=CriticReport,
+                system=critic_system,
+            )
+
+        try:
+            if timeout_limit > 0:
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
+                    future = executor.submit(_get_critic_report)
+                    critic_report = future.result(timeout=timeout_limit)
+                finally:
+                    executor.shutdown(wait=False, cancel_futures=True)
+            else:
+                critic_report = _get_critic_report()
             critic_notes = critic_report.summary if critic_report else ""
+        except (concurrent.futures.TimeoutError, TimeoutError) as e:
+            critic_error_occurred = True
+            err_detail = str(e).strip()
+            if err_detail:
+                critic_notes = f"Critic review unavailable this round: {err_detail} (overall limit {timeout_limit:.1f}s exceeded)"
+            else:
+                critic_notes = f"Critic review unavailable this round: The read operation timed out (overall limit {timeout_limit:.1f}s exceeded)"
+            logger.warning(
+                "Critic review timed out after %.1fs for round %d (continuing with current best fit): %s",
+                timeout_limit, round_num, critic_notes,
+            )
         except Exception as e:
             critic_error_occurred = True
-            critic_notes = f"Critic evaluation error: {e}"
+            # Clearly marked as UNAVAILABLE, not a failure of the fit itself: the already
+            # -computed SMPL fit (best_fit) is real and valid, this only means no further
+            # multimodal critique could be obtained this round. Logged for ops visibility
+            # (previously silent outside this round's own Firestore record).
+            critic_notes = f"Critic review unavailable this round: {e}"
+            logger.warning(
+                "Critic review unavailable for round %d (continuing with current best fit): %s",
+                round_num, e,
+            )
 
         critic_latency_ms = int((time.time() - t0) * 1000)
 
-        # Handle critic exception or missing report
+        # Handle critic exception or missing report: stop refining and return the current
+        # best (already-computed, already-validated) fit as-is -- never fabricate a critic
+        # verdict or treat this as a fit failure.
         if critic_error_occurred or critic_report is None:
             round_logs.append(
                 RoundLogDocument(

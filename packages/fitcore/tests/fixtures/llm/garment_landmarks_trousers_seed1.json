@@ -1,0 +1,55 @@
+{
+ "category": "trousers",
+ "seed": 1,
+ "zones": {
+  "waist": 88,
+  "hip": 108,
+  "thigh": 64,
+  "inseam": 80
+ },
+ "reply": {
+  "landmarks": [
+   {
+    "name": "waist_left",
+    "x": 254.0,
+    "y": 84.0
+   },
+   {
+    "name": "waist_right",
+    "x": 510.0,
+    "y": 84.0
+   },
+   {
+    "name": "hip_left",
+    "x": 224.0,
+    "y": 229.0
+   },
+   {
+    "name": "hip_right",
+    "x": 541.0,
+    "y": 229.0
+   },
+   {
+    "name": "thigh_outer_left",
+    "x": 196.0,
+    "y": 282.0
+   },
+   {
+    "name": "crotch",
+    "x": 383.0,
+    "y": 282.0
+   },
+   {
+    "name": "leg_hem_inner_left",
+    "x": 348.0,
+    "y": 908.0
+   }
+  ]
+ },
+ "measured": {
+  "waist": 87.7,
+  "hip": 109.2,
+  "thigh": 64.1,
+  "inseam": 79.7
+ }
+}

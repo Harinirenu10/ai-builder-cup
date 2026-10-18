@@ -193,3 +193,73 @@ def export_fit_result_to_glb(
         output_path=output_path,
         ground_mesh=ground_mesh,
     )
+
+
+def export_zone_heatmap_glb(
+    vertices: np.ndarray,
+    faces: np.ndarray,
+    vertex_colors: np.ndarray,
+    output_path: str | Path | None = None,
+    ground_mesh: bool = True,
+) -> bytes:
+    """Export a body mesh with a PER-VERTEX color array (Prompt 5, Phase 2's
+    body-mesh fit-visualization overlay -- see garment_heatmap.py). This is a
+    separate function: export_twin_glb's own default export (one uniform
+    neutral color for every vertex) is unchanged and still the exact
+    behavior used everywhere else.
+
+    Args:
+        vertices: (N, 3) float array of vertex coordinates in meters.
+        faces: (M, 3) integer triangle index array.
+        vertex_colors: (N, 4) uint8 RGBA array, one color per vertex (as
+            produced by garment_heatmap.build_zone_heatmap).
+        output_path: Optional destination path to write the .glb file.
+        ground_mesh: If True, shifts Y so the lowest sole vertex rests at Y=0.0.
+
+    Returns:
+        Raw bytes of the compiled .glb asset.
+
+    Raises:
+        ValueError: If vertices, faces, or vertex_colors are malformed.
+    """
+    v_arr = np.asarray(vertices, dtype=np.float32)
+    f_arr = np.asarray(faces, dtype=np.int32)
+    c_arr = np.asarray(vertex_colors, dtype=np.uint8)
+
+    if v_arr.ndim != 2 or v_arr.shape[1] != 3:
+        raise ValueError(f"Vertices array must have shape (N, 3), got {v_arr.shape}.")
+    if f_arr.ndim != 2 or f_arr.shape[1] != 3:
+        raise ValueError(f"Faces array must have shape (M, 3), got {f_arr.shape}.")
+    if len(v_arr) == 0 or len(f_arr) == 0:
+        raise ValueError("Vertices and faces must not be empty.")
+    if c_arr.shape != (len(v_arr), 4):
+        raise ValueError(f"vertex_colors must have shape ({len(v_arr)}, 4), got {c_arr.shape}.")
+    if not np.all(np.isfinite(v_arr)):
+        raise ValueError("Vertices array contains NaN or Infinite coordinate values.")
+    if np.any(f_arr < 0) or np.any(f_arr >= len(v_arr)):
+        raise ValueError("Faces array contains vertex indices out of bounds.")
+
+    v_export = v_arr.copy()
+    if ground_mesh:
+        min_y = float(np.min(v_export[:, 1]))
+        v_export[:, 1] -= min_y
+        mean_x = float(np.mean(v_export[:, 0]))
+        mean_z = float(np.mean(v_export[:, 2]))
+        v_export[:, 0] -= mean_x
+        v_export[:, 2] -= mean_z
+
+    mesh = trimesh.Trimesh(vertices=v_export, faces=f_arr, process=False)
+    mesh.fix_normals()
+    mesh.visual = trimesh.visual.ColorVisuals(mesh=mesh, vertex_colors=c_arr)
+
+    glb_bytes = mesh.export(file_type="glb")
+    if not isinstance(glb_bytes, bytes):
+        glb_bytes = bytes(glb_bytes)
+
+    if output_path is not None:
+        p = Path(output_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "wb") as f:
+            f.write(glb_bytes)
+
+    return glb_bytes

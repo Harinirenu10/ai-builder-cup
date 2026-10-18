@@ -1,0 +1,160 @@
+{
+  "product": {
+    "title": "Silk-Blend Wrap Blouse",
+    "brand": "Demo Threads Co.",
+    "category": "blouse",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "viscose",
+        "percent": 60.0
+      },
+      {
+        "fiber": "silk",
+        "percent": 40.0
+      }
+    ],
+    "stretch_class": null,
+    "pre_shrunk": "unknown",
+    "pre_shrunk_evidence": null,
+    "size_system": "letter",
+    "chart_type": "body",
+    "chart_type_evidence": "Size guide: body measurements",
+    "unit": "cm",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "XS",
+        "measurements": [
+          {
+            "label": "To fit bust (cm)",
+            "value_min": 82.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit waist (cm)",
+            "value_min": 64.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit shoulder (cm)",
+            "value_min": 36.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "S",
+        "measurements": [
+          {
+            "label": "To fit bust (cm)",
+            "value_min": 86.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit waist (cm)",
+            "value_min": 68.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit shoulder (cm)",
+            "value_min": 37.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "M",
+        "measurements": [
+          {
+            "label": "To fit bust (cm)",
+            "value_min": 90.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit waist (cm)",
+            "value_min": 72.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit shoulder (cm)",
+            "value_min": 38.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "L",
+        "measurements": [
+          {
+            "label": "To fit bust (cm)",
+            "value_min": 94.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit waist (cm)",
+            "value_min": 76.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit shoulder (cm)",
+            "value_min": 39.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "XL",
+        "measurements": [
+          {
+            "label": "To fit bust (cm)",
+            "value_min": 98.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit waist (cm)",
+            "value_min": 80.0,
+            "value_max": null
+          },
+          {
+            "label": "To fit shoulder (cm)",
+            "value_min": 40.0,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "img/blouse-front.svg",
+      "img/blouse-back.svg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [
+      {
+        "zone": "chest",
+        "direction": "runs_small",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": []
+      },
+      {
+        "zone": "garment_length",
+        "direction": "short",
+        "strength": 0.2,
+        "mention_count": 1,
+        "reviewer_context": [
+          {
+            "height_cm": 177.8,
+            "torso": null,
+            "note": "Lily: short for me at 5'10"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 1
+  }
+}

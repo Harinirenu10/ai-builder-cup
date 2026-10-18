@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from fitcore.schemas import RoundLogDocument, TwinDocument
+from fitcore.schemas import OrderDocument, RoundLogDocument, TwinDocument
 
 logger = logging.getLogger("geometry.cloud_client")
 
@@ -41,6 +41,42 @@ class FirestoreClientProtocol(Protocol):
         """Fetch twin document by id from twins/{twin_id}."""
         ...
 
+    def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
+        """Most recently created twin document owned by user_id, or None if they have none."""
+        ...
+
+    def create_garment(self, garment_id: str, garment_data: dict[str, Any]) -> None:
+        """Store garment measurement document at garments/{garment_id}."""
+        ...
+
+    def get_garment(self, garment_id: str) -> dict[str, Any] | None:
+        """Fetch garment measurement document by id from garments/{garment_id}."""
+        ...
+
+    def set_fit_prefs(self, user_id: str, category: str, prefs_data: dict[str, Any]) -> None:
+        """Store fit preference document at users/{user_id}/fit_prefs/{category}."""
+        ...
+
+    def get_fit_prefs(self, user_id: str, category: str) -> dict[str, Any] | None:
+        """Fetch fit preference document from users/{user_id}/fit_prefs/{category}."""
+        ...
+
+    def get_product(self, product_id: str) -> dict[str, Any] | None:
+        """Fetch product document by id from products/{product_id}."""
+        ...
+
+    def create_product(self, product_id: str, product_data: dict[str, Any]) -> None:
+        """Store product document at products/{product_id}."""
+        ...
+
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
+        """Fetch order document by id from orders/{order_id}."""
+        ...
+
+    def create_order(self, order_id: str, order_data: dict[str, Any] | OrderDocument) -> None:
+        """Store order document at orders/{order_id}."""
+        ...
+
 
 @runtime_checkable
 class StorageClientProtocol(Protocol):
@@ -66,6 +102,17 @@ class InMemoryFirestoreClient:
         self.jobs: dict[str, dict[str, Any]] = initial_jobs or {}
         self.rounds: dict[str, dict[int, dict[str, Any]]] = {}
         self.twins: dict[str, dict[str, Any]] = {}
+        self.garments: dict[str, dict[str, Any]] = {}
+        self.fit_prefs: dict[tuple[str, str], dict[str, Any]] = {}
+        self.products: dict[str, dict[str, Any]] = {}
+        self.orders: dict[str, dict[str, Any]] = {}
+        self.progress: dict[str, dict[str, Any]] = {}
+
+    def get_user_progress(self, user_id: str) -> dict[str, Any] | None:
+        return self.progress.get(user_id)
+
+    def set_user_progress(self, user_id: str, progress_data: dict[str, Any]) -> None:
+        self.progress[user_id] = dict(progress_data)
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         return self.jobs.get(job_id)
@@ -87,6 +134,47 @@ class InMemoryFirestoreClient:
 
     def get_twin(self, twin_id: str) -> dict[str, Any] | None:
         return self.twins.get(twin_id)
+
+    def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
+        owned = [(i, t) for i, t in enumerate(self.twins.values()) if t.get("user_id") == user_id]
+        if not owned:
+            return None
+        # Break created_at ties by insertion order (self.twins is a plain dict, insertion-
+        # ordered since Python 3.7), not just string comparison of created_at alone. Confirmed
+        # via a real browser E2E test: a pre-existing twin and a freshly-captured one can end up
+        # with an equal (or ambiguously-ordered, e.g. datetime.isoformat() dropping the
+        # microseconds field when it is exactly zero) created_at string, in which case plain
+        # max() silently returns whichever one happens to come first in iteration order --
+        # which was the STALE pre-existing twin, not the one the user just captured. Without this,
+        # GET /v1/me/twin (and the customer app's 3D Twin Viewer, which calls it right after a
+        # capture completes) can keep showing an old twin after a brand new one was created.
+        _, latest = max(owned, key=lambda pair: (pair[1].get("created_at", ""), pair[0]))
+        return latest
+
+    def create_garment(self, garment_id: str, garment_data: dict[str, Any]) -> None:
+        self.garments[garment_id] = dict(garment_data)
+
+    def get_garment(self, garment_id: str) -> dict[str, Any] | None:
+        return self.garments.get(garment_id)
+
+    def set_fit_prefs(self, user_id: str, category: str, prefs_data: dict[str, Any]) -> None:
+        self.fit_prefs[(user_id, category)] = dict(prefs_data)
+
+    def get_fit_prefs(self, user_id: str, category: str) -> dict[str, Any] | None:
+        return self.fit_prefs.get((user_id, category))
+
+    def get_product(self, product_id: str) -> dict[str, Any] | None:
+        return self.products.get(product_id)
+
+    def create_product(self, product_id: str, product_data: dict[str, Any]) -> None:
+        self.products[product_id] = dict(product_data)
+
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
+        return self.orders.get(order_id)
+
+    def create_order(self, order_id: str, order_data: dict[str, Any] | OrderDocument) -> None:
+        data = order_data.model_dump() if isinstance(order_data, OrderDocument) else dict(order_data)
+        self.orders[order_id] = data
 
 
 class InMemoryStorageClient:
@@ -179,6 +267,53 @@ class GoogleCloudFirestoreClient:
     def get_twin(self, twin_id: str) -> dict[str, Any] | None:
         doc = self.db.collection("twins").document(twin_id).get()
         return doc.to_dict() if doc.exists else None
+
+    def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
+        query = (
+            self.db.collection("twins")
+            .where("user_id", "==", user_id)
+            .order_by("created_at", direction="DESCENDING")
+            .limit(1)
+        )
+        docs = list(query.stream())
+        return docs[0].to_dict() if docs else None
+
+    def create_garment(self, garment_id: str, garment_data: dict[str, Any]) -> None:
+        self.db.collection("garments").document(garment_id).set(dict(garment_data))
+
+    def get_garment(self, garment_id: str) -> dict[str, Any] | None:
+        doc = self.db.collection("garments").document(garment_id).get()
+        return doc.to_dict() if doc.exists else None
+
+    def set_fit_prefs(self, user_id: str, category: str, prefs_data: dict[str, Any]) -> None:
+        self.db.collection("users").document(user_id).collection("fit_prefs").document(category).set(
+            dict(prefs_data)
+        )
+
+    def get_fit_prefs(self, user_id: str, category: str) -> dict[str, Any] | None:
+        doc = (
+            self.db.collection("users")
+            .document(user_id)
+            .collection("fit_prefs")
+            .document(category)
+            .get()
+        )
+        return doc.to_dict() if doc.exists else None
+
+    def get_product(self, product_id: str) -> dict[str, Any] | None:
+        doc = self.db.collection("products").document(product_id).get()
+        return doc.to_dict() if doc.exists else None
+
+    def create_product(self, product_id: str, product_data: dict[str, Any]) -> None:
+        self.db.collection("products").document(product_id).set(dict(product_data))
+
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
+        doc = self.db.collection("orders").document(order_id).get()
+        return doc.to_dict() if doc.exists else None
+
+    def create_order(self, order_id: str, order_data: dict[str, Any] | OrderDocument) -> None:
+        data = order_data.model_dump() if isinstance(order_data, OrderDocument) else dict(order_data)
+        self.db.collection("orders").document(order_id).set(data)
 
 
 class GoogleCloudStorageClient:

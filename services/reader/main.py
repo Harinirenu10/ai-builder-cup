@@ -1,9 +1,24 @@
 """Reader Service: Product page fetching and size chart reading via Playwright."""
 
+import sys
+from pathlib import Path
+
+# Same two-launch-method problem as services/api/main.py: `uvicorn main:app`
+# from this directory (the Dockerfile) vs. `uvicorn services.reader.main:app`
+# from the repo root (infra/Makefile's `dev` target). Only the first puts
+# this directory on sys.path, which `readerlib.*` needs.
+_READER_DIR = Path(__file__).resolve().parent
+if str(_READER_DIR) not in sys.path:
+    sys.path.insert(0, str(_READER_DIR))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fitcore.schemas import Product, SizeChart
+from fastapi import HTTPException
+
+from readerlib.cache import ReadCache
+from readerlib.models import ReadImageRequest, ReadRequest, ReadResponse
+from readerlib.pipeline import read_image, read_url
 
 app = FastAPI(
     title="Measured Fit Reader Service",
@@ -29,6 +44,38 @@ def healthz() -> dict[str, str]:
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "Measured Fit Reader service online"}
+
+
+_cache: ReadCache | None = None
+
+
+def get_cache() -> ReadCache:
+    global _cache
+    if _cache is None:
+        _cache = ReadCache()
+    return _cache
+
+
+@app.post("/read", response_model=ReadResponse)
+async def read(req: ReadRequest) -> ReadResponse:
+    """Read a product page. status is ok, blocked (captcha, login wall, 401/403/429), unsupported or error.
+
+    Results are cached by sha256(url) in products/{hash} for 7 days, blocked results included.
+    """
+    resp = await read_url(req.url, get_cache())
+    if resp.status == "error":
+        raise HTTPException(status_code=502 if not (resp.reason or "").startswith(("Only http", "Internal", "Cannot resolve", "The host")) else 422,
+                            detail=resp.reason)
+    return resp
+
+
+@app.post("/read-image", response_model=ReadResponse)
+async def read_image_endpoint(req: ReadImageRequest) -> ReadResponse:
+    """Product from a size-chart screenshot, for sites that block the reader."""
+    resp = await read_image(req.image, req.page_url)
+    if resp.status == "error":
+        raise HTTPException(status_code=422 if resp.reason == "not a valid image" else 502, detail=resp.reason)
+    return resp
 
 
 if __name__ == "__main__":

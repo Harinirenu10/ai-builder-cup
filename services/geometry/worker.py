@@ -86,12 +86,43 @@ def _cleanup_storage_photos(
             logger.warning("Could not delete photo %s: %s", ref, exc)
 
 
+def _cleanup_job_record_photos(
+    firestore_client: FirestoreClientProtocol,
+    job_id: str,
+    raw_photos: Any,
+    opt_in_keep_front: bool,
+) -> None:
+    """Strip raw photo data out of the persisted jobs/{job_id} document itself.
+
+    _cleanup_storage_photos (above) only ever deletes files at a storage
+    reference -- it does nothing when a caller submits photos as inline data
+    (a data: URL in the request body's 'photos' dict, which is how every
+    current caller -- services/api/main.py's create_twin_job_endpoint --
+    submits them). In that case the full-resolution raw photo bytes are
+    stored directly on the job document and were never being removed,
+    confirmed by a real end-to-end run: all 4 photos were still present on a
+    'done' job with opt_in_keep_front_photo=False. This closes that gap by
+    clearing (or, for front on opt-in, trimming to front-only) the job
+    document's own 'photos' field, the same zero-retention rule
+    _cleanup_storage_photos already applies to actual storage blobs.
+    """
+    if not isinstance(raw_photos, dict) or not raw_photos:
+        return
+    kept = {"front": raw_photos["front"]} if (opt_in_keep_front and "front" in raw_photos) else {}
+    try:
+        firestore_client.update_job(job_id, {"photos": kept})
+        logger.debug("Cleared raw photos from job record %s (kept front: %s)", job_id, bool(kept))
+    except Exception as exc:
+        logger.warning("Could not clear raw photos from job record %s: %s", job_id, exc)
+
+
 def process_twin_job(
     job_id: str,
     firestore_client: FirestoreClientProtocol | None = None,
     storage_client: StorageClientProtocol | None = None,
     critic_llm_fn: Callable[..., Any] | None = None,
     pose_extractor: MediaPipePoseExtractor | None = None,
+    critic_timeout_s: float | None = None,
 ) -> dict[str, Any]:
     """Execute the end-to-end twin generation pipeline for a Cloud Tasks job.
 
@@ -101,6 +132,7 @@ def process_twin_job(
         storage_client: Optional injected Storage client (defaults to global).
         critic_llm_fn: Optional injected critic callback for testing.
         pose_extractor: Optional injected MediaPipe pose extractor for testing.
+        critic_timeout_s: Optional strict overall timeout in seconds for critic review.
 
     Returns:
         Summary dict containing status, twin_id, final_iou, and metrics.
@@ -156,6 +188,7 @@ def process_twin_job(
                     },
                 )
                 _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=False)
+                _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=False)
                 return {
                     "status": JobStatus.failed.value,
                     "job_id": job_id,
@@ -201,6 +234,7 @@ def process_twin_job(
             )
             # Enforce privacy cleanup upon validation failure
             _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=False)
+            _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=False)
             return {
                 "status": validation_outcome.status.value,
                 "job_id": job_id,
@@ -262,6 +296,7 @@ def process_twin_job(
                     },
                 )
                 _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=False)
+                _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=False)
                 return {
                     "status": JobStatus.needs_retake.value,
                     "job_id": job_id,
@@ -322,6 +357,7 @@ def process_twin_job(
             max_rounds=5,
             storage_client=st,
             overlay_path_prefix=f"users/{user_id}/jobs/{job_id}/critic_overlays",
+            critic_timeout_s=critic_timeout_s,
         )
 
         # Log each round to Firestore jobs/{job_id}/rounds/{round_num}
@@ -388,6 +424,7 @@ def process_twin_job(
 
         # 11. Enforce Privacy Cleanup: delete raw photos
         _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
+        _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
 
         return {
             "status": JobStatus.done.value,
@@ -412,6 +449,7 @@ def process_twin_job(
         )
         # Attempt privacy cleanup even on unexpected crash
         _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
+        _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
         return {
             "status": JobStatus.failed.value,
             "job_id": job_id,

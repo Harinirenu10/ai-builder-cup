@@ -1,0 +1,79 @@
+{
+  "csv_path": "eval\\garment_photo_synthetic_fixture.csv",
+  "total_rows": 1,
+  "evaluated_rows": 1,
+  "failed_rows": 0,
+  "field_metrics": {
+    "chest_flat_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    },
+    "chest_circ_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    },
+    "shoulder_width_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    },
+    "sleeve_length_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    },
+    "garment_length_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    },
+    "hem_width_cm": {
+      "sample_count": 1,
+      "mae_cm": 0.0,
+      "max_error_cm": 0.0
+    }
+  },
+  "row_diagnostics": [
+    {
+      "row": 0,
+      "image_path": "eval\\fixtures\\garment_photo\\tee_synthetic_01.jpg",
+      "category": "tops",
+      "a4_confidence": 0.833,
+      "measurement_confidence": 0.833,
+      "per_field": {
+        "chest_flat_cm": {
+          "tape_cm": 34.5,
+          "estimated_cm": 34.5,
+          "abs_error_cm": 0.0
+        },
+        "chest_circ_cm": {
+          "tape_cm": 69.0,
+          "estimated_cm": 69.0,
+          "abs_error_cm": 0.0
+        },
+        "shoulder_width_cm": {
+          "tape_cm": 31.05,
+          "estimated_cm": 31.05,
+          "abs_error_cm": 0.0
+        },
+        "sleeve_length_cm": {
+          "tape_cm": 26.63,
+          "estimated_cm": 26.63,
+          "abs_error_cm": 0.0
+        },
+        "garment_length_cm": {
+          "tape_cm": 56.19,
+          "estimated_cm": 56.19,
+          "abs_error_cm": 0.0
+        },
+        "hem_width_cm": {
+          "tape_cm": 25.88,
+          "estimated_cm": 25.88,
+          "abs_error_cm": 0.0
+        }
+      }
+    }
+  ]
+}

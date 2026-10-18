@@ -1,0 +1,197 @@
+# target_ease_cm[category][fit_type][zone] = [min, ideal, max]
+# Ease = garment minus body, in cm (circumferences are full circumference). Every number is a starting value to tune.
+# Length zones: sleeve_length and inseam are garment minus body length; garment_length is garment minus body torso_length.
+
+target_ease_cm:
+  tshirt:
+    slim:
+      chest: [4, 8, 12]                # TUNE
+      shoulder_width: [0, 1, 2.5]      # TUNE
+      garment_length: [14, 18, 24]     # TUNE
+    regular:
+      chest: [8, 14, 20]               # TUNE
+      shoulder_width: [0.5, 2, 4]      # TUNE
+      garment_length: [18, 24, 30]     # TUNE
+    relaxed:
+      chest: [14, 20, 28]              # TUNE
+      shoulder_width: [2, 4, 6]        # TUNE
+      garment_length: [22, 28, 36]     # TUNE
+    oversized:
+      chest: [24, 32, 42]              # TUNE
+      shoulder_width: [4, 8, 12]       # TUNE
+      garment_length: [26, 34, 44]     # TUNE
+  shirt:
+    slim:
+      chest: [6, 10, 14]               # TUNE
+      waist: [4, 8, 14]                # TUNE
+      shoulder_width: [0, 1, 2.5]      # TUNE
+      sleeve_length: [-1, 0, 2]        # TUNE
+      garment_length: [18, 22, 28]     # TUNE
+    regular:
+      chest: [10, 16, 22]              # TUNE
+      waist: [10, 16, 24]              # TUNE
+      shoulder_width: [0.5, 2, 4]      # TUNE
+      sleeve_length: [-1, 1, 3]        # TUNE
+      garment_length: [20, 26, 32]     # TUNE
+    relaxed:
+      chest: [16, 22, 30]              # TUNE
+      waist: [16, 24, 32]              # TUNE
+      shoulder_width: [2, 4, 6]        # TUNE
+      sleeve_length: [0, 2, 4]         # TUNE
+      garment_length: [22, 28, 36]     # TUNE
+    oversized:
+      chest: [26, 34, 44]              # TUNE
+      waist: [24, 32, 42]              # TUNE
+      shoulder_width: [4, 8, 12]       # TUNE
+      sleeve_length: [1, 3, 6]         # TUNE
+      garment_length: [26, 34, 44]     # TUNE
+  kurta:
+    slim:
+      chest: [6, 10, 14]               # TUNE
+      waist: [6, 12, 18]               # TUNE
+      hip: [6, 10, 16]                 # TUNE
+      shoulder_width: [0, 1, 2.5]      # TUNE
+      sleeve_length: [-1, 0, 2]        # TUNE
+      garment_length: [36, 44, 52]     # TUNE
+    regular:
+      chest: [10, 16, 24]              # TUNE
+      waist: [12, 20, 30]              # TUNE
+      hip: [12, 20, 30]                # TUNE
+      shoulder_width: [0.5, 2, 4]      # TUNE
+      sleeve_length: [-1, 1, 3]        # TUNE
+      garment_length: [40, 48, 60]     # TUNE
+    relaxed:
+      chest: [18, 26, 36]              # TUNE
+      waist: [20, 30, 40]              # TUNE
+      hip: [20, 30, 42]                # TUNE
+      shoulder_width: [2, 4, 6]        # TUNE
+      sleeve_length: [0, 2, 4]         # TUNE
+      garment_length: [44, 52, 66]     # TUNE
+    oversized:
+      chest: [28, 38, 50]              # TUNE
+      waist: [30, 40, 52]              # TUNE
+      hip: [32, 44, 58]                # TUNE
+      shoulder_width: [4, 8, 12]       # TUNE
+      sleeve_length: [1, 3, 6]         # TUNE
+      garment_length: [48, 58, 74]     # TUNE
+  dress:
+    slim:
+      chest: [2, 6, 10]                # TUNE
+      waist: [0, 4, 8]                 # TUNE
+      hip: [2, 6, 10]                  # TUNE
+      shoulder_width: [0, 1, 2.5]      # TUNE
+      garment_length: [45, 55, 75]     # TUNE
+    regular:
+      chest: [6, 12, 18]               # TUNE
+      waist: [4, 10, 18]               # TUNE
+      hip: [6, 12, 20]                 # TUNE
+      shoulder_width: [0.5, 2, 4]      # TUNE
+      garment_length: [45, 55, 75]     # TUNE
+    relaxed:
+      chest: [12, 20, 28]              # TUNE
+      waist: [12, 22, 32]              # TUNE
+      hip: [14, 24, 36]                # TUNE
+      shoulder_width: [2, 4, 6]        # TUNE
+      garment_length: [45, 55, 75]     # TUNE
+    oversized:
+      chest: [22, 32, 44]              # TUNE
+      waist: [24, 36, 48]              # TUNE
+      hip: [26, 38, 52]                # TUNE
+      shoulder_width: [4, 8, 12]       # TUNE
+      garment_length: [45, 55, 75]     # TUNE
+  blouse:
+    slim:
+      chest: [0, 4, 8]                 # TUNE
+      waist: [0, 4, 8]                 # TUNE
+      shoulder_width: [0, 1, 2.5]      # TUNE
+      sleeve_length: [-1, 0, 2]        # TUNE
+      garment_length: [8, 14, 22]      # TUNE
+    regular:
+      chest: [4, 8, 14]                # TUNE
+      waist: [4, 8, 14]                # TUNE
+      shoulder_width: [0.5, 2, 4]      # TUNE
+      sleeve_length: [-1, 1, 3]        # TUNE
+      garment_length: [8, 14, 22]      # TUNE
+    relaxed:
+      chest: [10, 16, 24]              # TUNE
+      waist: [10, 16, 24]              # TUNE
+      shoulder_width: [2, 4, 6]        # TUNE
+      sleeve_length: [0, 2, 4]         # TUNE
+      garment_length: [10, 16, 26]     # TUNE
+    oversized:
+      chest: [20, 28, 38]              # TUNE
+      waist: [20, 28, 38]              # TUNE
+      shoulder_width: [4, 8, 12]       # TUNE
+      sleeve_length: [1, 3, 6]         # TUNE
+      garment_length: [12, 20, 30]     # TUNE
+  trousers:
+    slim:
+      waist: [0, 2, 4]                 # TUNE
+      hip: [4, 8, 12]                  # TUNE
+      thigh: [4, 8, 12]                # TUNE
+      inseam: [-2, 0, 2]               # TUNE
+      back_rise: [0, 1, 3]             # TUNE
+    regular:
+      waist: [2, 4, 8]                 # TUNE
+      hip: [8, 14, 20]                 # TUNE
+      thigh: [8, 14, 20]               # TUNE
+      inseam: [-1, 1, 4]               # TUNE
+      back_rise: [0, 2, 5]             # TUNE
+    relaxed:
+      waist: [4, 8, 14]                # TUNE
+      hip: [14, 20, 28]                # TUNE
+      thigh: [14, 20, 28]              # TUNE
+      inseam: [-1, 1, 5]               # TUNE
+      back_rise: [1, 3, 6]             # TUNE
+    oversized:
+      waist: [8, 14, 22]               # TUNE
+      hip: [22, 30, 40]                # TUNE
+      thigh: [22, 30, 40]              # TUNE
+      inseam: [0, 2, 6]                # TUNE
+      back_rise: [2, 4, 8]             # TUNE
+  jeans:
+    slim:
+      waist: [0, 1, 3]                 # TUNE
+      hip: [2, 6, 10]                  # TUNE
+      thigh: [2, 6, 10]                # TUNE
+      inseam: [-2, 0, 2]               # TUNE
+      back_rise: [0, 1, 3]             # TUNE
+    regular:
+      waist: [1, 3, 6]                 # TUNE
+      hip: [6, 12, 18]                 # TUNE
+      thigh: [6, 12, 18]               # TUNE
+      inseam: [-1, 1, 4]               # TUNE
+      back_rise: [0, 2, 5]             # TUNE
+    relaxed:
+      waist: [3, 6, 10]                # TUNE
+      hip: [12, 18, 26]                # TUNE
+      thigh: [12, 18, 26]              # TUNE
+      inseam: [-1, 1, 5]               # TUNE
+      back_rise: [1, 3, 6]             # TUNE
+    oversized:
+      waist: [6, 10, 16]               # TUNE
+      hip: [20, 28, 38]                # TUNE
+      thigh: [20, 28, 38]              # TUNE
+      inseam: [0, 2, 6]                # TUNE
+      back_rise: [2, 4, 8]             # TUNE
+  jacket:
+    slim:
+      chest: [8, 12, 18]               # TUNE
+      shoulder_width: [0, 1.5, 3]      # TUNE
+      sleeve_length: [0, 1, 3]         # TUNE
+      garment_length: [14, 20, 28]     # TUNE
+    regular:
+      chest: [14, 20, 28]              # TUNE
+      shoulder_width: [1, 2.5, 5]      # TUNE
+      sleeve_length: [0, 2, 4]         # TUNE
+      garment_length: [18, 24, 32]     # TUNE
+    relaxed:
+      chest: [22, 30, 40]              # TUNE
+      shoulder_width: [3, 5, 8]        # TUNE
+      sleeve_length: [1, 3, 5]         # TUNE
+      garment_length: [22, 28, 38]     # TUNE
+    oversized:
+      chest: [32, 42, 54]              # TUNE
+      shoulder_width: [5, 9, 13]       # TUNE
+      sleeve_length: [2, 4, 7]         # TUNE
+      garment_length: [26, 34, 46]     # TUNE

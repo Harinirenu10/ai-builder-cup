@@ -1,0 +1,77 @@
+{
+ "category": "shirt",
+ "seed": 2,
+ "zones": {
+  "chest": 114,
+  "waist": 110,
+  "shoulder_width": 46,
+  "sleeve_length": 61.5,
+  "garment_length": 74
+ },
+ "reply": {
+  "landmarks": [
+   {
+    "name": "armpit_left",
+    "x": 177.0,
+    "y": 247.0
+   },
+   {
+    "name": "armpit_right",
+    "x": 551.0,
+    "y": 251.0
+   },
+   {
+    "name": "waist_left",
+    "x": 182.0,
+    "y": 427.0
+   },
+   {
+    "name": "waist_right",
+    "x": 546.0,
+    "y": 425.0
+   },
+   {
+    "name": "shoulder_tip_left",
+    "x": 213.0,
+    "y": 100.0
+   },
+   {
+    "name": "shoulder_tip_right",
+    "x": 516.0,
+    "y": 103.0
+   },
+   {
+    "name": "sleeve_cuff_left",
+    "x": 53.0,
+    "y": 555.0
+   },
+   {
+    "name": "neck_left",
+    "x": 307.0,
+    "y": 75.0
+   },
+   {
+    "name": "neck_right",
+    "x": 421.0,
+    "y": 80.0
+   },
+   {
+    "name": "hem_left",
+    "x": 178.0,
+    "y": 679.0
+   },
+   {
+    "name": "hem_right",
+    "x": 549.0,
+    "y": 680.0
+   }
+  ]
+ },
+ "measured": {
+  "chest": 115.1,
+  "waist": 110.5,
+  "shoulder_width": 46.5,
+  "sleeve_length": 61.5,
+  "garment_length": 73.8
+ }
+}

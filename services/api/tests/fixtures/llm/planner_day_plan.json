@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-19",
+  "events": [
+    {
+      "event_id": "event-client-meeting",
+      "title": "10:00 Client meeting",
+      "dress_code": "Business Formal",
+      "outfit_item_ids": [
+        "demo-shirt-white",
+        "demo-trousers-navy",
+        "demo-jacket-charcoal"
+      ],
+      "reasons": [
+        "Structured professional tailoring suitable for 10:00 executive client review",
+        "High contrast formal colorway (white & navy) projects confidence",
+        "Breathable weave comfortable for boardroom air conditioning"
+      ],
+      "pack_list": [],
+      "repeat_check": {
+        "circle": "office",
+        "last_worn_with_circle_on": null,
+        "chip_text": null
+      }
+    },
+    {
+      "event_id": "event-wedding-reception",
+      "title": "19:00 Wedding reception",
+      "dress_code": "Festive Ethnic Formal",
+      "outfit_item_ids": [
+        "demo-kurta-silk-gold",
+        "demo-trousers-cream-churidar"
+      ],
+      "reasons": [
+        "Matches 19:00 wedding reception festive formality (level 5)",
+        "Honors family circle cultural dress code expectations",
+        "Structured silk weave suitable for evening reception temperature"
+      ],
+      "pack_list": [
+        "Garment bag for reception outfit change",
+        "Ethnic silk dupatta / stole",
+        "Traditional mojaris / formal footwear",
+        "Cuff links / brooch accessory"
+      ],
+      "repeat_check": {
+        "circle": "family",
+        "last_worn_with_circle_on": null,
+        "chip_text": "Last worn with Office on 01 Oct"
+      }
+    }
+  ],
+  "cached": false
+}

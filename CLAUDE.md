@@ -3,9 +3,8 @@ Deadline: prototype submitted by Oct 18. Optimize for a working, demoable vertic
 Thesis: "Measured, not guessed." We measure the body (a 3D twin from 4 photos) and the garment (one flat-lay photo next to an A4 sheet) so shoppers and businesses can trust size and fit answers.
 
 ## Hard constraints
-- AI: All LLM calls across the system route through packages/fitcore/fitcore/llm.py (structured JSON output via pydantic schemas, 3 retries, latency/token logging).
-  - Production / Deployment: Gemini models through the google-genai Python SDK on Gemini Enterprise Agent Platform (Vertex AI): genai.Client(vertexai=True, project=GOOGLE_CLOUD_PROJECT, location="global"). Model IDs come only from env vars GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL, GEMINI_IMAGE_MODEL, VTO_MODEL. Never hardcode a model ID. Never use any gemini-1.x or gemini-2.x model.
-  - Local Dev & Offline Testing: Internal Ollama endpoint with model `gemma4:12b` enabled via `LLM_PROVIDER=ollama` (OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_API_KEY).
+- AI: Gemini models only, through the google-genai Python SDK on Gemini Enterprise Agent Platform (formerly Vertex AI): genai.Client(vertexai=True, project=GOOGLE_CLOUD_PROJECT, location="global"). Model IDs come only from env vars GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL, GEMINI_IMAGE_MODEL, VTO_MODEL. Never hardcode a model ID. Never use any gemini-1.x or gemini-2.x model. Dev backends (LLM_BACKEND, default auto): text-only calls try Gemma on Ollama first (OLLAMA_BASE_URL, OLLAMA_MODEL), then fall back to Gemini; image parts are supported on Ollama too (base64, resized); real body photos should still use Vertex. The Gemini Developer API key (GEMINI_API_KEY) is for dev only and must be used sparingly: prefer Ollama, keep Gemini calls few (cap GEMINI_API_MAX_CALLS, default 30), use recorded fixtures in tests, never commit or paste the key into any file, command or log; it lives in the environment or the gitignored .env. The submitted demo uses Gemini on Vertex.
+- Every Gemini call goes through packages/fitcore/fitcore/llm.py (structured JSON output via pydantic schemas, retries, latency logging).
 - Hosting: Cloud Run for services (min instances 0), Firebase Hosting for the web app, Firestore + Cloud Storage for data, Cloud Tasks for async jobs. Ask before adding any other cloud service.
 
 - Perception: MediaPipe Pose Landmarker. Body model: SMPL via the smplx package; model files are license-gated and placed manually in services/geometry/models/smpl/.
@@ -30,3 +29,4 @@ Thesis: "Measured, not guessed." We measure the body (a 3D twin from 4 photos) a
 - Tests: pytest, offline by default; Gemini calls in tests use recorded fixtures in tests/fixtures/llm/.
 - Done means: works locally, tests pass, deploys with make deploy-<service>, one README section.
 - Deterministic code for math and geometry; Gemini for perception, reasoning and language.
+- Keep HANDOFF.md current at every step: when you finish a piece of work, update its lists of what is pending, what is not tested, what is not built and the known limits, and the date at the top. Add what you could not verify, and remove items you have verified or built. Never claim something is tested if it only ran against a stand-in.

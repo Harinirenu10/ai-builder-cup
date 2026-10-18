@@ -1,0 +1,273 @@
+{
+  "kurta": {
+    "size_chart": {
+      "sizes": {
+        "S": {
+          "chest": 34.5,
+          "waist": 28.5,
+          "hip": 36.5
+        },
+        "M": {
+          "chest": 36.5,
+          "waist": 30.5,
+          "hip": 38.5
+        },
+        "L": {
+          "chest": 38.5,
+          "waist": 32.5,
+          "hip": 40.5
+        },
+        "XL": {
+          "chest": 40.5,
+          "waist": 34.5,
+          "hip": 42.5
+        },
+        "XXL": {
+          "chest": 42.5,
+          "waist": 36.5,
+          "hip": 44.5
+        }
+      },
+      "chart_type": "body",
+      "size_system": "ALPHA",
+      "unit": "in"
+    },
+    "category": "kurta",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "rayon",
+        "percent": 100
+      }
+    ],
+    "stretch_class": "none",
+    "ref": "dtc-kurta",
+    "pre_shrunk": false
+  },
+  "shirt": {
+    "size_chart": {
+      "sizes": {
+        "S": {
+          "chest": 108.0,
+          "shoulder_width": 44.0,
+          "sleeve_length": 60.0,
+          "garment_length": 72.0
+        },
+        "M": {
+          "chest": 114.0,
+          "shoulder_width": 46.0,
+          "sleeve_length": 61.5,
+          "garment_length": 74.0
+        },
+        "L": {
+          "chest": 120.0,
+          "shoulder_width": 48.0,
+          "sleeve_length": 63.0,
+          "garment_length": 76.0
+        },
+        "XL": {
+          "chest": 126.0,
+          "shoulder_width": 50.0,
+          "sleeve_length": 64.5,
+          "garment_length": 78.0
+        }
+      },
+      "chart_type": "garment",
+      "size_system": "ALPHA",
+      "unit": "cm"
+    },
+    "category": "shirt",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 100
+      }
+    ],
+    "stretch_class": "none",
+    "ref": "dtc-shirt",
+    "pre_shrunk": true
+  },
+  "trousers": {
+    "size_chart": {
+      "sizes": {
+        "30": {
+          "waist": 84.0,
+          "hip": 104.0,
+          "thigh": 62.0,
+          "inseam": 80.0,
+          "back_rise": 27.0
+        },
+        "32": {
+          "waist": 88.0,
+          "hip": 108.0,
+          "thigh": 64.0,
+          "inseam": 80.0,
+          "back_rise": 27.5
+        },
+        "34": {
+          "waist": 92.0,
+          "hip": 112.0,
+          "thigh": 66.0,
+          "inseam": 80.0,
+          "back_rise": 28.0
+        },
+        "36": {
+          "waist": 96.0,
+          "hip": 116.0,
+          "thigh": 68.0,
+          "inseam": 80.0,
+          "back_rise": 28.5
+        }
+      },
+      "chart_type": "garment",
+      "size_system": "US_NUMERIC",
+      "unit": "cm"
+    },
+    "category": "trousers",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 98
+      },
+      {
+        "fiber": "elastane",
+        "percent": 2
+      }
+    ],
+    "stretch_class": "low",
+    "ref": "dtc-trousers"
+  },
+  "tshirt": {
+    "size_chart": {
+      "sizes": {
+        "S": {
+          "chest": 112.0,
+          "garment_length": 70.0,
+          "shoulder_width": 48.0
+        },
+        "M": {
+          "chest": 118.0,
+          "garment_length": 72.0,
+          "shoulder_width": 50.0
+        },
+        "L": {
+          "chest": 124.0,
+          "garment_length": 74.0,
+          "shoulder_width": 52.0
+        },
+        "XL": {
+          "chest": 130.0,
+          "garment_length": 76.0,
+          "shoulder_width": 54.0
+        }
+      },
+      "chart_type": "garment",
+      "size_system": "ALPHA",
+      "unit": "cm"
+    },
+    "category": "tshirt",
+    "fit_type": "relaxed",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 100
+      }
+    ],
+    "stretch_class": "none",
+    "ref": "dtc-tshirt",
+    "pre_shrunk": true
+  },
+  "jacket": {
+    "size_chart": {
+      "sizes": {
+        "S": {
+          "chest": 110.0,
+          "sleeve_length": 63.0,
+          "garment_length": 70.0,
+          "shoulder_width": 46.0
+        },
+        "M": {
+          "chest": 116.0,
+          "sleeve_length": 64.0,
+          "garment_length": 72.0,
+          "shoulder_width": 48.0
+        },
+        "L": {
+          "chest": 122.0,
+          "sleeve_length": 65.0,
+          "garment_length": 74.0,
+          "shoulder_width": 50.0
+        },
+        "XL": {
+          "chest": 128.0,
+          "sleeve_length": 66.0,
+          "garment_length": 76.0,
+          "shoulder_width": 52.0
+        }
+      },
+      "chart_type": "garment",
+      "size_system": "ALPHA",
+      "unit": "cm"
+    },
+    "category": "jacket",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 100
+      }
+    ],
+    "stretch_class": "none",
+    "ref": "dtc-jacket"
+  },
+  "blouse": {
+    "size_chart": {
+      "sizes": {
+        "XS": {
+          "chest": 82.0,
+          "waist": 64.0,
+          "shoulder_width": 36.0
+        },
+        "S": {
+          "chest": 86.0,
+          "waist": 68.0,
+          "shoulder_width": 37.0
+        },
+        "M": {
+          "chest": 90.0,
+          "waist": 72.0,
+          "shoulder_width": 38.0
+        },
+        "L": {
+          "chest": 94.0,
+          "waist": 76.0,
+          "shoulder_width": 39.0
+        },
+        "XL": {
+          "chest": 98.0,
+          "waist": 80.0,
+          "shoulder_width": 40.0
+        }
+      },
+      "chart_type": "body",
+      "size_system": "ALPHA",
+      "unit": "cm"
+    },
+    "category": "blouse",
+    "fit_type": "regular",
+    "fabric": [
+      {
+        "fiber": "viscose",
+        "percent": 60
+      },
+      {
+        "fiber": "silk",
+        "percent": 40
+      }
+    ],
+    "stretch_class": "none",
+    "ref": "dtc-blouse"
+  }
+}

@@ -16,7 +16,9 @@ Verifies:
 
 from __future__ import annotations
 
+import base64
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -288,6 +290,43 @@ def test_process_twin_job_success(mock_extract, mock_cloud_environment):
 
 
 @patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_reaches_done_when_critic_times_out_repeatedly(mock_extract, mock_cloud_environment):
+    """Regression test for the real demo symptom (job stuck at 'refining' /
+    85%, log: 'LLM [gemma4:12b] call failed permanently after 1 attempts: The
+    read operation timed out'): exercises the REAL critic default path (no
+    critic_llm_fn injected, unlike every other test in this file) with
+    fitcore.llm.generate_json patched to always time out. The job must still
+    reach JobStatus.done -- using the already-computed, already-valid SMPL fit
+    -- not hang, not fail, and not fabricate a critic result. Answers this
+    investigation's first question directly: yes, the job correctly reaches a
+    terminal state afterward.
+    """
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    with patch("fitcore.llm.generate_json", side_effect=TimeoutError("The read operation timed out")):
+        result = process_twin_job(job_id="job_101", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.done.value
+    assert "twin_id" in result
+
+    job = fs.get_job("job_101")
+    assert job["status"] == JobStatus.done.value
+    assert job["twin_id"] == result["twin_id"]
+
+    twin = fs.get_twin(result["twin_id"])
+    assert twin is not None and "chest" in twin["measurements"]["zones"]
+
+    # Critic unavailability must be visible in the round log, not silently hidden.
+    round_log = fs.rounds["job_101"][1]
+    assert round_log["accepted"] is False
+    assert "unavailable" in round_log["critic_notes"].lower()
+
+    # Privacy cleanup must still run even though critic review never completed.
+    assert "users/user_42/jobs/job_101/front.jpg" in st.deleted_paths
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
 def test_process_twin_job_preserves_front_photo_when_opted_in(mock_extract, mock_cloud_environment):
     """When opt_in_keep_front_photo=True, front photo must be preserved while others are deleted."""
     fs, st = mock_cloud_environment
@@ -337,6 +376,172 @@ def test_process_twin_job_missing_photo_marks_failed(mock_cloud_environment):
     job = fs.get_job("job_101")
     assert job["status"] == JobStatus.failed.value
     assert job["error_code"] == "MISSING_PHOTOS"
+
+
+# ----------------------------------------------------------------------------------
+# Privacy regression: persisted job-record photo cleanup.
+#
+# mock_cloud_environment (above) seeds the job's 'photos' field with STORAGE PATH
+# references, which _cleanup_storage_photos already handles correctly (confirmed by
+# test_process_twin_job_success and test_process_twin_job_preserves_front_photo_when_opted_in
+# above). It does not reproduce the actual bug: services/api/main.py's
+# create_twin_job_endpoint stores the raw submitted photo data (a data: URL) directly
+# as the job document's 'photos' field value, not a storage path. A real end-to-end run
+# with real photos confirmed those raw bytes were still present on the job record after
+# the job reached 'done', because _cleanup_storage_photos only ever deletes STORAGE
+# blobs -- it never touches the Firestore job document's own 'photos' field. These
+# tests use INLINE data: URLs (matching the real submission format) and inspect the
+# persisted job record itself, not just storage, to guard against that gap.
+
+
+@pytest.fixture
+def mock_cloud_environment_inline_photos():
+    """Like mock_cloud_environment, but the job's 'photos' field holds inline data:
+    URLs -- the actual format services/api/main.py's create_twin_job_endpoint writes
+    -- instead of storage path references."""
+    valid_jpeg = _make_valid_test_jpeg()
+    inline_photo = "data:image/jpeg;base64," + base64.b64encode(valid_jpeg).decode()
+
+    fs = InMemoryFirestoreClient()
+    st = InMemoryStorageClient(files={}, bucket_name="measured-fit-test")
+
+    fs.update_job(
+        "job_inline",
+        {
+            "id": "job_inline",
+            "user_id": "user_42",
+            "status": JobStatus.checking.value,
+            "height_cm": 178.0,
+            "gender": "neutral",
+            "age_18_confirmed": True,
+            "opt_in_keep_front_photo": False,
+            "photos": {
+                "front": inline_photo,
+                "back": inline_photo,
+                "left": inline_photo,
+                "right": inline_photo,
+            },
+        },
+    )
+
+    set_cloud_clients(firestore_client=fs, storage_client=st)
+    return fs, st, inline_photo
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_success_clears_inline_photos_from_job_record(
+    mock_extract, mock_cloud_environment_inline_photos
+):
+    """On success with opt_in_keep_front_photo=False, the persisted job record's
+    'photos' field must end up empty -- not just storage blobs deleted."""
+    fs, st, _inline_photo = mock_cloud_environment_inline_photos
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    result = process_twin_job(
+        job_id="job_inline",
+        firestore_client=fs,
+        storage_client=st,
+        critic_llm_fn=_mock_critic_stop,
+    )
+
+    assert result["status"] == JobStatus.done.value
+
+    job = fs.get_job("job_inline")
+    assert job["status"] == JobStatus.done.value  # job status itself is unaffected
+    assert "twin_id" in job and job["twin_id"] == result["twin_id"]  # twin data preserved
+    assert job["photos"] == {}, f"expected all raw photos cleared from job record, got: {job['photos']}"
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_success_keeps_only_front_inline_photo_when_opted_in(
+    mock_extract, mock_cloud_environment_inline_photos
+):
+    """On success with opt_in_keep_front_photo=True, the persisted job record must
+    retain ONLY the front photo's raw data; back/left/right must be cleared."""
+    fs, st, inline_photo = mock_cloud_environment_inline_photos
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+    fs.update_job("job_inline", {"opt_in_keep_front_photo": True})
+
+    result = process_twin_job(
+        job_id="job_inline",
+        firestore_client=fs,
+        storage_client=st,
+        critic_llm_fn=_mock_critic_stop,
+    )
+
+    assert result["status"] == JobStatus.done.value
+
+    job = fs.get_job("job_inline")
+    assert job["status"] == JobStatus.done.value
+    assert job["photos"] == {"front": inline_photo}, (
+        f"expected only front photo retained on job record, got: {job['photos']}"
+    )
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_processing_error_clears_inline_photos_from_job_record(
+    mock_extract, mock_cloud_environment_inline_photos
+):
+    """On an unexpected crash with opt_in_keep_front_photo=False, the persisted job
+    record's 'photos' field must still end up empty -- cleanup on failure must reach
+    the job record too, not just storage."""
+    fs, st, _inline_photo = mock_cloud_environment_inline_photos
+    mock_extract.side_effect = RuntimeError("MediaPipe unexpected internal error")
+
+    result = process_twin_job("job_inline", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.failed.value
+    assert result["error_code"] == "PROCESSING_ERROR"
+
+    job = fs.get_job("job_inline")
+    assert job["status"] == JobStatus.failed.value  # failure status preserved
+    assert job["error_code"] == "PROCESSING_ERROR"
+    assert job["photos"] == {}, f"expected all raw photos cleared from job record, got: {job['photos']}"
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_processing_error_keeps_only_front_inline_photo_when_opted_in(
+    mock_extract, mock_cloud_environment_inline_photos
+):
+    """On an unexpected crash with opt_in_keep_front_photo=True, the persisted job
+    record must retain ONLY the front photo; back/left/right must be cleared even on
+    the failure path."""
+    fs, st, inline_photo = mock_cloud_environment_inline_photos
+    mock_extract.side_effect = RuntimeError("MediaPipe unexpected internal error")
+    fs.update_job("job_inline", {"opt_in_keep_front_photo": True})
+
+    result = process_twin_job("job_inline", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.failed.value
+
+    job = fs.get_job("job_inline")
+    assert job["status"] == JobStatus.failed.value
+    assert job["error_code"] == "PROCESSING_ERROR"
+    assert job["photos"] == {"front": inline_photo}, (
+        f"expected only front photo retained on job record, got: {job['photos']}"
+    )
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_validation_failure_clears_inline_photos_from_job_record(
+    mock_extract, mock_cloud_environment_inline_photos
+):
+    """Early rejection paths (here: the chest arm-separation gate) must also clear
+    the job record's raw photos, even when opted in -- matching
+    _cleanup_storage_photos's existing opt_in_keep_front=False behavior at this same
+    call site: a rejected capture's "front" photo is not worth retaining either."""
+    fs, st, _inline_photo = mock_cloud_environment_inline_photos
+    fs.update_job("job_inline", {"opt_in_keep_front_photo": True})
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes_with_chest_geometry(arms_merged=True)
+
+    result = process_twin_job("job_inline", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.needs_retake.value
+    assert result["error_code"] == "PHOTO_QUALITY_CHECK_FAILED"
+
+    job = fs.get_job("job_inline")
+    assert job["status"] == JobStatus.needs_retake.value
+    assert job["photos"] == {}, f"expected all raw photos cleared from job record, got: {job['photos']}"
 
 
 def test_process_twin_job_underage_consent_rejected(mock_cloud_environment):
@@ -473,3 +678,60 @@ def test_fastapi_endpoint_404_on_missing_job(mock_cloud_environment):
     client = TestClient(app)
     response = client.post("/twin/process/job_does_not_exist")
     assert response.status_code == 404
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_reaches_done_when_critic_exceeds_overall_timeout(mock_extract, mock_cloud_environment):
+    """Regression test: when the critic call or its retries exceed the strict
+    overall timeout (e.g. repeated socket timeouts against an unresponsive
+    Gemma/Ollama model), process_twin_job must not hang at 'refining' / 85%.
+    It must safely fall back to the already-computed, valid 3D fit, continue to
+    GLB export and upload, record critic unavailability in round logs, reach
+    JobStatus.done, and clean up temporary storage photos.
+    """
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    def slow_critic_simulating_timeout(overlays, meas):
+        time.sleep(1.5)
+        return CriticReport(regions=[], stop=True, summary="Late critic report.")
+
+    t0 = time.time()
+    result = process_twin_job(
+        job_id="job_101",
+        firestore_client=fs,
+        storage_client=st,
+        critic_llm_fn=slow_critic_simulating_timeout,
+        critic_timeout_s=0.2,
+    )
+    elapsed = time.time() - t0
+
+    # Ensure critic review was cut off by timeout rather than running the full 1.5s
+    round_log = fs.rounds["job_101"][1]
+    assert round_log["accepted"] is False
+    assert round_log["critic_latency_ms"] < 1200, f"Critic latency {round_log['critic_latency_ms']}ms exceeded timeout limit"
+    assert result["status"] == JobStatus.done.value
+    assert "twin_id" in result
+    assert "users/user_42/twins/" in result["glb_storage_url"]
+    assert result["glb_storage_url"].endswith("/twin.glb")
+
+    # Terminal status in Firestore
+    job = fs.get_job("job_101")
+    assert job["status"] == JobStatus.done.value
+    assert job["current_step"] == "completed"
+    assert job["twin_id"] == result["twin_id"]
+
+    # Twin document successfully created with valid measurements
+    twin = fs.get_twin(result["twin_id"])
+    assert twin is not None
+    assert "chest" in twin["measurements"]["zones"]
+    assert twin["glb_storage_url"] == result["glb_storage_url"]
+
+    # Round log records unavailability
+    round_log = fs.rounds["job_101"][1]
+    assert round_log["accepted"] is False
+    assert "unavailable" in round_log["critic_notes"].lower()
+    assert "timed out" in round_log["critic_notes"].lower()
+
+    # Privacy cleanup completed
+    assert "users/user_42/jobs/job_101/front.jpg" in st.deleted_paths

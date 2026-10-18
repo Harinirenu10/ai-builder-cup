@@ -1,0 +1,140 @@
+{
+  "product": {
+    "title": "Relaxed Taper Selvedge Denim",
+    "brand": "Demo Threads Co.",
+    "category": "jeans",
+    "fit_type": "relaxed",
+    "fabric": [
+      {
+        "fiber": "cotton",
+        "percent": 98.0
+      },
+      {
+        "fiber": "elastane",
+        "percent": 2.0
+      }
+    ],
+    "stretch_class": "low",
+    "pre_shrunk": "false",
+    "pre_shrunk_evidence": "Rinsed, not pre-shrunk: expect up to 3% shrinkage on the first wash",
+    "size_system": "US",
+    "chart_type": "body",
+    "chart_type_evidence": "Size guide: body measurements",
+    "unit": "in",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "30",
+        "measurements": [
+          {
+            "label": "To fit waist (in)",
+            "value_min": 30.0,
+            "value_max": 31.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 38.0,
+            "value_max": 39.0
+          },
+          {
+            "label": "Inseam (in)",
+            "value_min": 32.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "32",
+        "measurements": [
+          {
+            "label": "To fit waist (in)",
+            "value_min": 32.0,
+            "value_max": 33.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 40.0,
+            "value_max": 41.0
+          },
+          {
+            "label": "Inseam (in)",
+            "value_min": 32.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "34",
+        "measurements": [
+          {
+            "label": "To fit waist (in)",
+            "value_min": 34.0,
+            "value_max": 35.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 42.0,
+            "value_max": 43.0
+          },
+          {
+            "label": "Inseam (in)",
+            "value_min": 32.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "36",
+        "measurements": [
+          {
+            "label": "To fit waist (in)",
+            "value_min": 36.0,
+            "value_max": 37.0
+          },
+          {
+            "label": "To fit hip (in)",
+            "value_min": 44.0,
+            "value_max": 45.0
+          },
+          {
+            "label": "Inseam (in)",
+            "value_min": 32.0,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "https://demo-threads.example/img/denim-front.jpg",
+      "https://demo-threads.example/img/denim-back.jpg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 6,
+    "zone_signals": [
+      {
+        "zone": "waist",
+        "direction": "runs_small",
+        "strength": 0.5,
+        "mention_count": 3,
+        "reviewer_context": []
+      },
+      {
+        "zone": "inseam",
+        "direction": "long",
+        "strength": 0.33,
+        "mention_count": 2,
+        "reviewer_context": [
+          {
+            "height_cm": 162.56,
+            "torso": null,
+            "note": "5'4"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 2,
+    "color_mismatch_mentions": 0,
+    "sheerness_mentions": 0
+  }
+}

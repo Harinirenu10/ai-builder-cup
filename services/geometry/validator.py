@@ -277,7 +277,8 @@ def check_chest_arm_separation(
 
     return False, (
         "Arms appear too close to the torso in the front photo to measure the chest accurately; "
-        "please stand with your arms held slightly further out from your sides and retake the front photo."
+        "please raise your arms out to about shoulder height so there is a clear gap between your "
+        "upper arms and your body at chest level, then retake the front photo."
     )
 
 

@@ -1,0 +1,4 @@
+image_path,category,keypoints_path,chest_flat_cm,chest_circ_cm,shoulder_width_cm,sleeve_length_cm,garment_length_cm,hem_width_cm,waist_flat_cm,waist_circ_cm,hip_flat_cm,inseam_cm,leg_opening_cm
+EXAMPLE_tee_01/photo.jpg,tops,,50.0,100.0,45.0,60.0,70.0,52.0,,,,,
+EXAMPLE_tee_02/photo.jpg,tops,,48.0,96.0,43.0,58.0,68.0,50.0,,,,,
+EXAMPLE_jeans_01/photo.jpg,bottoms,,,,,,,,40.0,80.0,50.0,75.0,20.0

@@ -1,0 +1,50 @@
+{
+ "neck_left": [
+  507.5,
+  132.8
+ ],
+ "neck_right": [
+  681.8,
+  129.4
+ ],
+ "shoulder_tip_left": [
+  354.7,
+  163.4
+ ],
+ "shoulder_tip_right": [
+  838.8,
+  154.7
+ ],
+ "armpit_left": [
+  288.8,
+  350.9
+ ],
+ "armpit_right": [
+  896.0,
+  346.9
+ ],
+ "hem_left": [
+  274.2,
+  891.8
+ ],
+ "hem_right": [
+  873.3,
+  907.7
+ ],
+ "waist_left": [
+  292.5,
+  555.3
+ ],
+ "waist_right": [
+  877.5,
+  558.8
+ ],
+ "sleeve_cuff_right": [
+  1077.5,
+  750.0
+ ],
+ "sleeve_cuff_left": [
+  98.6,
+  733.3
+ ]
+}

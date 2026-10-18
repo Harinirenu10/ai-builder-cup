@@ -69,6 +69,7 @@ def test_size_chart_and_product():
         id="prod_tee_001",
         brand="Demo Threads Co.",
         title="Heavyweight Boxy Tee",
+        category="tshirt",
         size_chart=chart,
         material_composition={"cotton": 1.0},
     )
@@ -77,14 +78,10 @@ def test_size_chart_and_product():
 
 
 def test_fit_result_describes_garment_not_body():
-    fit = FitResult(
-        recommended_size="M",
-        confidence=0.92,
-        verdict="Standard regular ease with +5.0 cm room around chest.",
-        zone_deltas={MeasurementZone.chest: 5.0},
-    )
+    from fitcore.schemas import Category, FitType
+    fit = FitResult(category=Category.tshirt, fit_type=FitType.regular, sizes=[], recommended_size="M", confidence=0.92)
     assert fit.recommended_size == "M"
-    assert "chest" in fit.zone_deltas
+    assert fit.size_fit("M") is None
 
 
 # --- Phase 1 Tests: 3D Twin & Body Measurement Pipeline Domain Models ---
@@ -456,3 +453,18 @@ def test_all_12_zones_in_measurements_collection():
         assert val > 0
 
 
+def test_size_chart_inches_are_converted_to_cm():
+    chart = SizeChart(sizes={"M": {MeasurementZone.chest: 40.0}}, unit="in")
+    assert chart.unit == "cm"
+    assert chart.sizes["M"][MeasurementZone.chest] == pytest.approx(101.6)
+
+
+def test_product_legacy_material_composition_becomes_fabric():
+    p = Product(id="x", brand="b", title="t", category="shirt", material_composition={"cotton": 0.98, "elastane": 0.02})
+    assert {f.fiber: round(f.percent) for f in p.fabric} == {"cotton": 98, "elastane": 2}
+
+
+def test_fit_result_defaults():
+    fit = FitResult(category="kurta", fit_type="regular", sizes=[])
+    assert fit.recommended_size is None
+    assert fit.confidence == 0.0

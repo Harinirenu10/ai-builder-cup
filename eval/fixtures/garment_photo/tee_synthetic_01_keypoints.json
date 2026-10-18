@@ -1,0 +1,42 @@
+{
+  "left_armpit": {
+    "x": 300,
+    "y": 300
+  },
+  "right_armpit": {
+    "x": 700,
+    "y": 300
+  },
+  "left_shoulder_seam": {
+    "x": 320,
+    "y": 200
+  },
+  "right_shoulder_seam": {
+    "x": 680,
+    "y": 200
+  },
+  "back_neck_point": {
+    "x": 500,
+    "y": 150
+  },
+  "hem_center": {
+    "x": 500,
+    "y": 800
+  },
+  "hem_left": {
+    "x": 350,
+    "y": 800
+  },
+  "hem_right": {
+    "x": 650,
+    "y": 800
+  },
+  "left_cuff_outer": {
+    "x": 250,
+    "y": 500
+  },
+  "left_cuff_inner": {
+    "x": 280,
+    "y": 480
+  }
+}

@@ -16,11 +16,15 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // 2. Twins: Measurements & shape parameters readable/writable ONLY by owner
+    // 2. Twins: Measurements & shape parameters readable/writable ONLY by owner.
+    // The document's actual ownership field is `user_id` (packages/fitcore/fitcore/schemas.py
+    // TwinDocument, written by services/geometry/worker.py and checked by
+    // services/api/apilib/fit_mesh.py::_get_owned_twin) -- `owner_id` was never the real field
+    // name, so this rule previously matched nothing (not even the real owner).
     match /twins/{twinId} {
-      allow read: if isAuthenticated() && resource.data.owner_id == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.owner_id == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.owner_id == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
 
     // 3. Jobs & Rounds: Processing jobs owned by the requesting user
@@ -41,21 +45,32 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
 
-    // 5. Gifts: Accessible only by sender or recipient
+    // 5. Gifts: the giver creates one, a recipient (identified by the unguessable link) approves
+    //    or declines it once. The real document fields are `giver_uid` and `recipient_uid`
+    //    (services/api/apilib/gifts.py::create_gift writes {"giver_uid": uid, "recipient_uid": None, ...};
+    //    approve_gift/decline_gift set recipient_uid) -- NOT `sender_id`/`recipient_id`, which never
+    //    existed, so this rule previously matched nothing. Every gift write is server-mediated (the
+    //    API, via the Admin SDK, which bypasses these rules): creation sets server-controlled fields,
+    //    and approval computes recommended_size/confidence from the RECIPIENT's twin while hiding
+    //    measurements -- so no client may write gift documents directly (a direct write could forge
+    //    the size, self-assign as recipient, or attribute a gift to another giver). A signed-in giver
+    //    or assigned recipient may read their own gift; everyone else is denied.
     match /gifts/{giftId} {
       allow read: if isAuthenticated() && (
-        resource.data.sender_id == request.auth.uid || 
-        resource.data.recipient_id == request.auth.uid
+        resource.data.giver_uid == request.auth.uid ||
+        resource.data.recipient_uid == request.auth.uid
       );
-      allow create: if isAuthenticated() && request.resource.data.sender_id == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.sender_id == request.auth.uid;
+      allow create, update, delete: if false; // server-managed only (see above)
     }
 
-    // 6. Consents: User 18+ and photo retention consent records
+    // 6. Consents: two kinds share the collection.
+    //    - capture consents (18+, photo retention) carry user_id and are written by the owner;
+    //    - store consents (scope "fit_verdict") carry uid and merchant_id. The owner can read them (My twin lists them),
+    //      but they are created and revoked only by the API, which issues and checks the signed consent token.
     match /consents/{consentId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.get('uid', '') == request.auth.uid || resource.data.get('user_id', '') == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.get('scope', '') != 'fit_verdict' && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.get('scope', '') != 'fit_verdict' && resource.data.get('user_id', '') == request.auth.uid;
     }
 
     // 7. Public/Client-readable catalog collections
@@ -91,6 +106,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /sims/{simId} {
+      allow read, write: if false;
+    }
+    // Unboxing measurements (garment values and an overlay image, never body data): server only.
+    match /unboxing_measurements/{id} {
+      allow read, write: if false;
+    }
+    // Store-facing logs: server only. fit_queries holds no body data and no user id.
+    // (gifts are handled once, in section 5 above. This location previously held a SECOND,
+    // contradictory `match /gifts/{giftId}` block; because Firestore ORs the decisions of all
+    // matching blocks, that duplicate was harmless only by accident -- section 5's rule had the
+    // wrong field names and never matched -- so the two are now consolidated into the single
+    // corrected section-5 block, and this duplicate is removed.)
+    match /fit_queries/{queryId} {
       allow read, write: if false;
     }
   }

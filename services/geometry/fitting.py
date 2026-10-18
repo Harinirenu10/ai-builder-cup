@@ -85,6 +85,24 @@ class CircumferenceLoop:
         seg_lens = torch.sqrt(torch.sum(diff * diff, dim=-1) + 1e-8)
         return torch.sum(seg_lens) * 100.0
 
+    def mean_plane_y(self, vertices: torch.Tensor) -> torch.Tensor:
+        """Differentiable height (Y, meters) of this loop on the CURRENT
+        (posed/shape-deformed) vertices, averaged over its crossing points.
+
+        The loop's edge indices and interpolation weights are fixed at the
+        rest-pose template (see _build_loop's y_plane), so as betas/pose
+        change the loop no longer sits at exactly that template y_plane --
+        but its mean height still tracks the actual anatomical plane (e.g.
+        the natural waist) on the deformed body far more closely than a
+        fixed joint or vertex chosen for an unrelated purpose. Used to give
+        torso_length/back_rise a "waist plane" reference consistent with
+        the one waist_cm (the validated waist circumference) already uses,
+        instead of each picking its own disagreeing stand-in.
+        """
+        p1 = (1.0 - self.t1) * vertices[self.idx_a1] + self.t1 * vertices[self.idx_b1]
+        p2 = (1.0 - self.t2) * vertices[self.idx_a2] + self.t2 * vertices[self.idx_b2]
+        return torch.cat([p1[:, 1], p2[:, 1]]).mean()
+
 
 class MeshMeasurementExtractor:
     """Differentiable 12-zone measurement extractor for SMPL models."""
@@ -212,19 +230,48 @@ class MeshMeasurementExtractor:
         # (pelvis) despite this comment already saying "crotch level".
         inseam_cm = (vertices[self.idx_crotch, 1] - joints[7, 1]) * 100.0
 
-        # Linear: Torso Length (C7 vertebra down to waist plane / spine1 joint 3)
-        torso_len_cm = (vertices[self.idx_c7, 1] - joints[3, 1]) * 100.0
+        # Linear: Torso Length (C7 vertebra down to the natural waist plane).
+        # Uses waist_loop's own mean height (mean_plane_y), not the spine1
+        # joint: diagnostic comparison on this topology found spine1 sits
+        # ~6.4-9.5cm BELOW where waist_cm (the validated waist circumference)
+        # actually measures the waist, i.e. "spine1 joint 3" was never the
+        # same plane as "waist" despite the old comment equating them -- the
+        # same class of mistake already fixed for inseam's pelvis/crotch mix
+        # -up above. mean_plane_y tracks the real waist height on the
+        # deformed mesh and is now shared with back_rise below for one
+        # consistent "waist" notion instead of two disagreeing ones.
+        waist_plane_y = self.waist_loop.mean_plane_y(vertices)
+        torso_len_cm = (vertices[self.idx_c7, 1] - waist_plane_y) * 100.0
 
-        # Linear: Back Rise (posterior waist down to crotch bottom)
-        br_diff = vertices[self.idx_post_waist] - vertices[self.idx_crotch]
-        back_rise_cm = torch.sqrt(torch.sum(br_diff * br_diff) + 1e-8) * 100.0
+        # Linear: Back Rise (posterior waist down to crotch bottom). Uses the
+        # same waist_plane_y as torso_length above, not idx_post_waist's own
+        # Y: idx_post_waist is a fixed vertex confirmed posterior and
+        # on-midline (test_landmark_bilateral_symmetry_and_posterior_waist),
+        # but diagnostically its HEIGHT sits ~9.9cm below waist_loop's actual
+        # waist plane on this topology -- i.e. it is a valid posterior
+        # landmark but not at "waist" height, the same mismatch as
+        # torso_length's old spine1 reference. The X/Z offset between
+        # idx_post_waist and idx_crotch contributed under 1cm to the old 3D
+        # distance (confirmed directly), so collapsing to a pure vertical
+        # drop also matches how the photo side computes this zone (a
+        # vertical pixel span, not a 3D path length).
+        back_rise_cm = (waist_plane_y - vertices[self.idx_crotch, 1]) * 100.0
 
         # Linear: Upper Back (posterior armscye to armscye)
         ub_diff = vertices[self.idx_l_armscye] - vertices[self.idx_r_armscye]
         upper_back_cm = torch.sqrt(torch.sum(ub_diff * ub_diff) + 1e-8) * 100.0
 
-        # Linear: Garment Length (C7 down to hip / pelvis plane)
-        garment_len_cm = (vertices[self.idx_c7, 1] - joints[0, 1]) * 100.0
+        # Linear: Garment Length (C7 down to the hip plane). Uses the mean of
+        # the L/R hip JOINTS (1, 2), not the pelvis ROOT joint (0): on this
+        # topology the pelvis root sits ~9.5cm ABOVE the hip sockets
+        # (confirmed directly from joint positions), and it is the hip
+        # SOCKETS' height that the photo side's hip landmark (what
+        # MediaPipe's LEFT_HIP/RIGHT_HIP actually locate, and what
+        # measurements.py's garment_length now references) corresponds to --
+        # not the pelvis root, which has no equivalent in a 2D pose
+        # landmarker's output.
+        hip_plane_y = (joints[1, 1] + joints[2, 1]) / 2.0
+        garment_len_cm = (vertices[self.idx_c7, 1] - hip_plane_y) * 100.0
 
         return {
             MeasurementZone.chest: chest_cm,

@@ -1,0 +1,136 @@
+{
+  "product": {
+    "title": "Heavyweight Boxy Crewneck Tee",
+    "brand": "Demo Threads Co.",
+    "category": "tshirt",
+    "fit_type": "relaxed",
+    "fabric": [
+      {
+        "fiber": "organic cotton",
+        "percent": 100.0
+      }
+    ],
+    "stretch_class": "none",
+    "pre_shrunk": "true",
+    "pre_shrunk_evidence": "Garment-dyed and enzyme washed, pre-shrunk",
+    "size_system": "letter",
+    "chart_type": "garment",
+    "chart_type_evidence": "Size guide: garment measurements",
+    "unit": "cm",
+    "circumference_basis": "full",
+    "sizes": [
+      {
+        "label": "S",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 112.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 70.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 48.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "M",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 118.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 72.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 50.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "L",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 124.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 74.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 52.0,
+            "value_max": null
+          }
+        ]
+      },
+      {
+        "label": "XL",
+        "measurements": [
+          {
+            "label": "Chest (cm)",
+            "value_min": 130.0,
+            "value_max": null
+          },
+          {
+            "label": "Length (cm)",
+            "value_min": 76.0,
+            "value_max": null
+          },
+          {
+            "label": "Shoulder (cm)",
+            "value_min": 54.0,
+            "value_max": null
+          }
+        ]
+      }
+    ],
+    "image_urls": [
+      "img/tshirt-front.svg",
+      "img/tshirt-back.svg"
+    ]
+  },
+  "reviews": {
+    "reviews_read": 5,
+    "zone_signals": [
+      {
+        "zone": "chest",
+        "direction": "runs_large",
+        "strength": 0.4,
+        "mention_count": 2,
+        "reviewer_context": []
+      },
+      {
+        "zone": "garment_length",
+        "direction": "short",
+        "strength": 0.2,
+        "mention_count": 1,
+        "reviewer_context": [
+          {
+            "height_cm": 185.42,
+            "torso": "long",
+            "note": "sits above the belt"
+          }
+        ]
+      }
+    ],
+    "shrinkage_mentions": 0,
+    "color_mismatch_mentions": 1,
+    "sheerness_mentions": 0
+  }
+}

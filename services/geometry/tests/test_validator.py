@@ -399,6 +399,50 @@ def test_chest_gate_rejects_connected_arm_and_torso():
     assert "retake" in msg.lower()
 
 
+def test_chest_gate_rejects_partial_apose_separated_below_chest_but_merged_at_chest_row():
+    """Reproduces the real generated-photo failure (local-test-data A-pose set):
+    a natural, moderate A-pose where the FOREARMS swing clear of the body lower
+    down, but the UPPER arms remain against the torso at the chest row itself.
+
+    Direct pixel analysis of that front mask (984x1599) showed exactly this: a
+    single contiguous arm+torso segment across the 0.10-0.30 torso-span band
+    (which includes the 0.22 chest row), splitting into three clean segments
+    (left arm | torso | right arm, 31-73px gaps) only at 0.40+. The gate reads
+    the chest row specifically, so it must STILL reject here -- separation lower
+    down does not make the chest line measurable. This is correct behaviour, not
+    a false rejection: measuring chest at a contaminated row would inflate it
+    (the real photo's raw chest read ~102cm vs a plausible ~73cm).
+    """
+    mask = np.zeros((_CHEST_GATE_IMG_H, _CHEST_GATE_IMG_W), dtype=np.uint8)
+    mask[100:700, 160:240] = 1          # torso
+    # Upper arms merged with the torso AT the chest row (248): fill arm->torso edge, no gap.
+    mask[200:270, 120:160] = 1          # left upper arm, touching torso edge at the chest row
+    mask[200:270, 240:280] = 1          # right upper arm, touching torso edge at the chest row
+    # Forearms swing out below the chest row -> clear background gaps there (not at 248).
+    mask[300:420, 60:120] = 1           # left forearm, 40px gap from torso below the chest row
+    mask[300:420, 280:340] = 1          # right forearm, 40px gap from torso below the chest row
+
+    is_ok, msg = _check_chest_gate(mask)
+    assert is_ok is False, "arms merged at the chest row must be rejected even if they separate lower"
+    assert "arm" in msg.lower() and "retake" in msg.lower()
+
+
+def test_chest_gate_retake_message_guides_to_shoulder_height_pose():
+    """The retake guidance must tell the user the pose that actually clears the gate -- arms
+    raised to ~shoulder height with a clear gap at chest level -- not just 'arms slightly away',
+    which produces a pose the gate still rejects (the capture-guidance/validator mismatch fix)."""
+    mask = np.zeros((_CHEST_GATE_IMG_H, _CHEST_GATE_IMG_W), dtype=np.uint8)
+    mask[100:700, 160:240] = 1
+    mask[150:400, 60:340] = 1  # arms merged into torso -> gate fails, returns the retake guidance
+
+    is_ok, msg = _check_chest_gate(mask)
+    assert is_ok is False
+    low = msg.lower()
+    assert "shoulder height" in low, f"retake guidance should request arms at shoulder height: {msg!r}"
+    assert "gap" in low and "chest" in low, f"retake guidance should mention a clear gap at chest level: {msg!r}"
+    assert "slightly" not in low, f"retake guidance must no longer say 'slightly' (the under-abducted pose): {msg!r}"
+
+
 def test_chest_gate_tolerates_isolated_mask_noise():
     """A single stray foreground pixel just outside the expected torso window
     must not cause a false rejection -- this is the exact scenario a real

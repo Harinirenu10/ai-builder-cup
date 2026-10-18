@@ -10,7 +10,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "api",
+          "serviceId": "fit-api",
           "region": "us-central1"
         }
       },

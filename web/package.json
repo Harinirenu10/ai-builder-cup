@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build && node scripts/copy-static.mjs",
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "@google/model-viewer": "^4.0.0",
+    "@tanstack/react-query": "^5.104.3",
     "firebase": "^11.3.0",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
