@@ -167,3 +167,92 @@ def test_progress_lifecycle_and_user_isolation():
     assert rb.json()["user_id"] == bob
     assert rb.json()["height_cm"] == "175.0"  # default, untouched by Alice
 
+
+
+# ----------------------------------------------------------- POST /v1/me/twin/{twin_id}/save
+# The pipeline already persists every successful twin; this endpoint records the owner's
+# explicit intent to keep it ("Save My 3D Twin" in the customer app) and is what drives the
+# Saved/Save button state the UI shows. It must be idempotent (no duplicate saves, stable
+# saved_at) and owner-only, like every other twin endpoint.
+
+
+def _firestore_twin(uid: str, twin_id: str, **extra) -> dict:
+    doc = {
+        "id": twin_id,
+        "user_id": uid,
+        "glb_storage_url": f"users/{uid}/twins/{twin_id}/twin.glb",
+        "final_mean_iou": 0.42,
+        "created_at": "2026-10-18T12:00:00+00:00",
+        "measurements": {"zones": {"chest": {"value_cm": 98.5, "confidence": 0.9, "source": "smpl_fit"}}},
+    }
+    doc.update(extra)
+    return doc
+
+
+def test_save_twin_marks_it_saved_and_is_reflected_by_me_twin(mock_cloud):
+    fs, _ = mock_cloud
+    uid = "saver_1"
+    twin_id = "twin_to_save"
+    fs.create_twin(twin_id, _firestore_twin(uid, twin_id))
+
+    # Freshly generated twins start out not-yet-saved, so the UI shows a Save button.
+    before = client.get("/v1/me/twin", headers=_auth(uid))
+    assert before.status_code == 200
+    assert before.json()["saved"] is False
+    assert before.json()["saved_at"] is None
+
+    resp = client.post(f"/v1/me/twin/{twin_id}/save", headers=_auth(uid))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["twin_id"] == twin_id
+    assert body["saved"] is True
+    assert body["already_saved"] is False
+    assert body["saved_at"]
+
+    after = client.get("/v1/me/twin", headers=_auth(uid))
+    assert after.status_code == 200
+    assert after.json()["saved"] is True
+    assert after.json()["saved_at"] == body["saved_at"]
+    # Saving must not disturb the twin's actual data.
+    assert after.json()["measurements"]["zones"]["chest"]["value_cm"] == 98.5
+    assert after.json()["glb_url"] == f"/api/twin/{twin_id}/glb"
+
+
+def test_save_twin_is_idempotent_and_avoids_duplicate_saves(mock_cloud):
+    fs, _ = mock_cloud
+    uid = "saver_2"
+    twin_id = "twin_double_click"
+    fs.create_twin(twin_id, _firestore_twin(uid, twin_id))
+
+    first = client.post(f"/v1/me/twin/{twin_id}/save", headers=_auth(uid))
+    assert first.status_code == 200
+    assert first.json()["already_saved"] is False
+    original_saved_at = first.json()["saved_at"]
+
+    # A double-click / retried request must not create a second save or move the timestamp.
+    second = client.post(f"/v1/me/twin/{twin_id}/save", headers=_auth(uid))
+    assert second.status_code == 200
+    assert second.json()["saved"] is True
+    assert second.json()["already_saved"] is True
+    assert second.json()["saved_at"] == original_saved_at
+    assert fs.get_twin(twin_id)["saved_at"] == original_saved_at
+
+
+def test_save_twin_requires_auth_and_ownership(mock_cloud):
+    fs, _ = mock_cloud
+    owner = "saver_owner"
+    twin_id = "twin_owned"
+    fs.create_twin(twin_id, _firestore_twin(owner, twin_id))
+
+    anon = client.post(f"/v1/me/twin/{twin_id}/save")
+    assert anon.status_code == 401
+
+    intruder = client.post(f"/v1/me/twin/{twin_id}/save", headers=_auth("someone_else"))
+    assert intruder.status_code == 403
+    assert intruder.json()["detail"]["code"] == "forbidden"
+    # The twin must remain untouched by the rejected attempt.
+    assert fs.get_twin(twin_id).get("saved") in (None, False)
+
+    missing = client.post("/v1/me/twin/twin_does_not_exist/save", headers=_auth(owner))
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "twin_not_found"

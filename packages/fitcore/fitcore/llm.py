@@ -22,6 +22,7 @@ Secrets come from the environment or a gitignored .env, never from code or commi
 import json
 import logging
 import os
+import threading
 import time
 import urllib.request
 from typing import Any, Literal, TypeVar
@@ -145,6 +146,25 @@ def _ollama_configured() -> bool:
     return bool(os.environ.get("OLLAMA_BASE_URL", "").strip() and os.environ.get("OLLAMA_MODEL", "").strip())
 
 
+def gemini_backend_for_role(role: Literal["pro", "flash"]) -> str | None:
+    """Which Gemini backend could serve this role right now ("vertex"/"gemini_api"), else None.
+
+    Lets a caller decide whether retrying a failed small-model call on Gemini is even possible
+    before spending a round trip on it: the model IDs come only from env vars (see
+    get_model_for_role), so an unconfigured GEMINI_*_MODEL means there is no Gemini to fall back
+    to, however the backend is set.
+    """
+    try:
+        get_model_for_role(role)
+    except Exception:
+        return None
+    if os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip() or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip():
+        return "vertex"
+    if os.environ.get("GEMINI_API_KEY", "").strip():
+        return "gemini_api"
+    return None
+
+
 def _is_retryable(exc: Exception) -> bool:
     code = getattr(exc, "code", getattr(exc, "status_code", None))
     status_str = str(exc)
@@ -164,21 +184,43 @@ def _is_retryable(exc: Exception) -> bool:
     return "timed out" in status_str.lower()
 
 
-def _with_retries(label: str, role: str, call):
+def _with_retries(
+    label: str,
+    role: str,
+    call,
+    abort_event: threading.Event | None = None,
+    deadline: float | None = None,
+):
     """Run call() with 3 attempts and exponential backoff on retryable errors; log latency."""
     max_retries = 3
     delay = 1.0
     for attempt in range(1, max_retries + 1):
+        if abort_event is not None and abort_event.is_set():
+            logger.info("LLM [%s] aborted by caller prior to attempt %d", label, attempt)
+            raise TimeoutError(f"LLM call [{label}] aborted by caller")
+        if deadline is not None and time.time() >= deadline:
+            logger.info("LLM [%s] deadline exceeded prior to attempt %d", label, attempt)
+            raise TimeoutError(f"LLM call [{label}] deadline exceeded")
+
         start_time = time.perf_counter()
         try:
             return call(start_time)
         except Exception as exc:
+            if abort_event is not None and abort_event.is_set():
+                raise TimeoutError(f"LLM call [{label}] aborted by caller") from exc
+            if deadline is not None and time.time() >= deadline:
+                raise TimeoutError(f"LLM call [{label}] deadline exceeded") from exc
+
             if _is_retryable(exc) and attempt < max_retries:
                 logger.warning(
                     "LLM [%s] call failed with retryable status (attempt %d/%d): %s. Retrying in %.2fs...",
                     label, attempt, max_retries, exc, delay,
                 )
-                time.sleep(delay)
+                sleep_end = time.time() + delay
+                while time.time() < sleep_end:
+                    if abort_event is not None and abort_event.is_set():
+                        raise TimeoutError(f"LLM call [{label}] aborted during retry backoff")
+                    time.sleep(min(0.05, max(0.005, sleep_end - time.time())))
                 delay *= 2.0
             else:
                 logger.error("LLM [%s] call failed permanently after %d attempts: %s", label, attempt, exc)
@@ -192,6 +234,9 @@ def generate_json(
     system: str | None = None,
     client: Any | None = None,
     ollama_transport: Any | None = None,
+    abort_event: threading.Event | None = None,
+    timeout: float | None = None,
+    backend: str | None = None,
 ) -> T:
     """Generate structured JSON conforming to a Pydantic schema.
 
@@ -205,22 +250,30 @@ def generate_json(
         system: Optional system instruction prompt
         client: Optional pre-configured genai.Client (used for mocking/testing)
         ollama_transport: Optional callable(payload) -> dict replacing the HTTP call (tests)
+        abort_event: Optional threading.Event allowing caller to cancel running/retrying LLM calls
+        timeout: Optional overall timeout in seconds for this request
 
     Returns:
         Instance of the specified Pydantic schema
     """
-    backend = get_backend()
+    deadline = (time.time() + timeout) if timeout is not None else None
+    if backend is None:
+        backend = get_backend()
+    elif backend not in BACKENDS:
+        raise ValueError(f"backend must be one of {', '.join(BACKENDS)}, got '{backend}'.")
     if backend == "ollama":
-        return _generate_json_ollama(role, parts, schema, system, ollama_transport)
+        return _generate_json_ollama(role, parts, schema, system, ollama_transport, abort_event=abort_event, deadline=deadline)
     if backend == "auto" and _ollama_configured() and _ollama_supported(parts):
         try:
-            return _generate_json_ollama(role, parts, schema, system, ollama_transport)
+            return _generate_json_ollama(role, parts, schema, system, ollama_transport, abort_event=abort_event, deadline=deadline)
         except Exception as exc:
+            if abort_event is not None and abort_event.is_set():
+                raise
             logger.warning("Ollama unavailable or failed (%s); falling back to Gemini", exc)
     use_key = backend in ("auto", "gemini_api") and bool(os.environ.get("GEMINI_API_KEY", "").strip())
     if backend == "gemini_api" and not use_key:
         raise ValueError("LLM_BACKEND=gemini_api requires GEMINI_API_KEY.")
-    return _generate_json_vertex(role, parts, schema, system, client, use_key)
+    return _generate_json_vertex(role, parts, schema, system, client, use_key, abort_event=abort_event, deadline=deadline)
 
 
 def _image_bytes(part: Any) -> bytes | None:
@@ -268,7 +321,7 @@ def _sniff_mime(data: bytes) -> str:
     return {"jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}.get(fmt, f"image/{fmt}")
 
 
-def _generate_json_vertex(role, parts, schema, system, client, use_api_key=False):
+def _generate_json_vertex(role, parts, schema, system, client, use_api_key=False, abort_event=None, deadline=None):
     from google.genai import types
 
     model_id = get_model_for_role(role)
@@ -300,20 +353,24 @@ def _generate_json_vertex(role, parts, schema, system, client, use_api_key=False
         response_text = response.text if hasattr(response, "text") else str(response)
         return schema.model_validate_json(response_text)
 
-    return _with_retries(model_id, role, call)
+    return _with_retries(model_id, role, call, abort_event=abort_event, deadline=deadline)
 
 
-def _ollama_post(base_url: str, payload: dict[str, Any], api_key: str | None) -> dict[str, Any]:
+def _ollama_post(base_url: str, payload: dict[str, Any], api_key: str | None, deadline: float | None = None) -> dict[str, Any]:
     # A browser-less default User-Agent is blocked by some Cloudflare-fronted relays (HTTP 403).
     headers = {"Content-Type": "application/json", "User-Agent": "fitcore/0.1 (+ollama-dev)"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(base_url.rstrip("/") + "/api/chat", data=json.dumps(payload).encode("utf-8"), headers=headers)
-    with urllib.request.urlopen(req, timeout=float(os.environ.get("OLLAMA_TIMEOUT_S", "120"))) as resp:
+    req_timeout = float(os.environ.get("OLLAMA_TIMEOUT_S", "120"))
+    if deadline is not None:
+        remaining = deadline - time.time()
+        req_timeout = min(req_timeout, max(0.5, remaining))
+    with urllib.request.urlopen(req, timeout=req_timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _generate_json_ollama(role, parts, schema, system, transport):
+def _generate_json_ollama(role, parts, schema, system, transport, abort_event=None, deadline=None):
     """Dev-only Ollama path. Text and image parts (images as base64); one repair retry if the JSON does not validate."""
     base_url = os.environ.get("OLLAMA_BASE_URL", "").strip()
     model = os.environ.get("OLLAMA_MODEL", "").strip()
@@ -324,7 +381,7 @@ def _generate_json_ollama(role, parts, schema, system, transport):
         raise ValueError("The ollama backend handles text and image bytes only; other part types need Gemini.")
     texts = [p for p in items if isinstance(p, str)]
     images = [_encode_image(b) for b in (_image_bytes(p) for p in items) if b is not None]
-    post = transport or (lambda payload: _ollama_post(base_url, payload, os.environ.get("OLLAMA_API_KEY")))
+    post = transport or (lambda payload: _ollama_post(base_url, payload, os.environ.get("OLLAMA_API_KEY"), deadline=deadline))
 
     messages: list[dict[str, Any]] = []
     if system:
@@ -336,6 +393,11 @@ def _generate_json_ollama(role, parts, schema, system, transport):
 
     last_error: Exception | None = None
     for repair in range(2):
+        if abort_event is not None and abort_event.is_set():
+            raise TimeoutError("Ollama JSON generation aborted by caller")
+        if deadline is not None and time.time() >= deadline:
+            raise TimeoutError("Ollama JSON generation deadline exceeded")
+
         payload = {
             "model": model,
             "messages": messages,
@@ -354,7 +416,7 @@ def _generate_json_ollama(role, parts, schema, system, transport):
             )
             return data["message"]["content"]
 
-        text = _with_retries(model, role, call)
+        text = _with_retries(model, role, call, abort_event=abort_event, deadline=deadline)
         try:
             return schema.model_validate_json(text)
         except Exception as exc:  # invalid JSON from a small model: ask once more with the error

@@ -290,6 +290,62 @@ def test_process_twin_job_success(mock_extract, mock_cloud_environment):
 
 
 @patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_final_mean_iou_reflects_retained_mesh_when_last_round_rejected(mock_extract, mock_cloud_environment):
+    """Regression: final_mean_iou must equal the IoU of the mesh actually exported (best_fit),
+    not round_logs[-1].mean_iou_after. When the FINAL refinement round is rejected and rolled
+    back, that last round's mean_iou_after records the DISCARDED candidate's (lower) IoU, while
+    the retained/exported mesh keeps an earlier accepted round's (higher) IoU. The worker used to
+    report the rejected candidate's score, mismatching the saved mesh."""
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    from services.geometry.fitting import fit_smpl_shape
+    from fitcore.schemas import RoundLogDocument
+
+    retained_fit = fit_smpl_shape(Measurements(zones={}), target_height_cm=178.0, max_steps=5)
+    ts = "2026-01-01T00:00:00+00:00"
+    round_logs = [
+        # Round 1 accepted -> this candidate becomes the retained mesh, IoU 0.60.
+        RoundLogDocument(round=1, mean_iou_before=0.50, mean_iou_after=0.60, iou_delta=0.10, accepted=True, timestamp=ts),
+        # Round 2 REJECTED and rolled back -> mean_iou_after 0.45 is the discarded candidate's IoU,
+        # NOT the retained mesh (which is still round 1's 0.60).
+        RoundLogDocument(round=2, mean_iou_before=0.60, mean_iou_after=0.45, iou_delta=-0.15, accepted=False, timestamp=ts),
+    ]
+    with patch("services.geometry.worker.run_critic_refinement_loop", return_value=(retained_fit, round_logs, {})):
+        result = process_twin_job("job_101", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.done.value
+    twin = fs.get_twin(result["twin_id"])
+    assert twin["final_mean_iou"] == 0.60, f"expected retained mesh IoU 0.60, got {twin['final_mean_iou']} (rejected-round leak)"
+    assert result["final_mean_iou"] == 0.60
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_final_mean_iou_uses_initial_fit_iou_when_no_round_accepted(mock_extract, mock_cloud_environment):
+    """When NO round is accepted (every candidate rejected), the retained mesh is the initial fit,
+    so final_mean_iou must be round 1's mean_iou_before (the initial IoU), not any rejected
+    candidate's mean_iou_after."""
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    from services.geometry.fitting import fit_smpl_shape
+    from fitcore.schemas import RoundLogDocument
+
+    retained_fit = fit_smpl_shape(Measurements(zones={}), target_height_cm=178.0, max_steps=5)
+    ts = "2026-01-01T00:00:00+00:00"
+    round_logs = [
+        RoundLogDocument(round=1, mean_iou_before=0.55, mean_iou_after=0.40, iou_delta=-0.15, accepted=False, timestamp=ts),
+        RoundLogDocument(round=2, mean_iou_before=0.55, mean_iou_after=0.42, iou_delta=-0.13, accepted=False, timestamp=ts),
+    ]
+    with patch("services.geometry.worker.run_critic_refinement_loop", return_value=(retained_fit, round_logs, {})):
+        result = process_twin_job("job_101", firestore_client=fs, storage_client=st)
+
+    assert result["status"] == JobStatus.done.value
+    twin = fs.get_twin(result["twin_id"])
+    assert twin["final_mean_iou"] == 0.55, f"expected initial-fit IoU 0.55, got {twin['final_mean_iou']}"
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
 def test_process_twin_job_reaches_done_when_critic_times_out_repeatedly(mock_extract, mock_cloud_environment):
     """Regression test for the real demo symptom (job stuck at 'refining' /
     85%, log: 'LLM [gemma4:12b] call failed permanently after 1 attempts: The
@@ -735,3 +791,89 @@ def test_process_twin_job_reaches_done_when_critic_exceeds_overall_timeout(mock_
 
     # Privacy cleanup completed
     assert "users/user_42/jobs/job_101/front.jpg" in st.deleted_paths
+
+
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_logs_every_step_after_critic_timeout_and_reaches_done(
+    mock_extract, mock_cloud_environment, caplog
+):
+    """Regression test: verifies that after a critic timeout, clear logs are emitted
+    before and after every single subsequent step (critic return, GLB export, GLB validation,
+    storage upload, twin database save, done status update, and photo cleanup), and the job
+    successfully transitions to JobStatus.done.
+    """
+    import logging
+
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+
+    def slow_critic(overlays, meas):
+        time.sleep(1.0)
+        return CriticReport(regions=[], stop=True, summary="Timeout report.")
+
+    with caplog.at_level(logging.INFO):
+        result = process_twin_job(
+            job_id="job_101",
+            firestore_client=fs,
+            storage_client=st,
+            critic_llm_fn=slow_critic,
+            critic_timeout_s=0.1,
+        )
+
+    assert result["status"] == JobStatus.done.value
+
+    # Verify log messages for each required step before and after
+    log_text = caplog.text
+    # 1. Critic return
+    assert "Critic refinement loop finished" in log_text
+    # 2. GLB export & validation
+    assert "Exporting GLB mesh from fit result" in log_text
+    assert "GLB mesh exported successfully" in log_text
+    assert "GLB validation passed" in log_text
+    # 3. Storage upload
+    assert "Uploading GLB to storage" in log_text
+    assert "GLB uploaded successfully" in log_text
+    # 4. Twin database save
+    assert "Saving twin document" in log_text
+    assert "Twin document" in log_text and "saved to database" in log_text
+    # 5. Final done status
+    assert "Updating job status to 'done'" in log_text
+    assert "Job status successfully updated to 'done'" in log_text
+    # 6. Photo cleanup
+    assert "Enforcing photo privacy cleanup" in log_text
+    assert "Photo privacy cleanup complete" in log_text
+
+
+@patch("services.geometry.worker.export_fit_result_to_glb")
+@patch("services.geometry.worker.extract_four_view_landmarks_and_silhouettes")
+def test_process_twin_job_records_failed_when_post_critic_step_fails(
+    mock_extract, mock_export_glb, mock_cloud_environment
+):
+    """Regression test: if an essential post-critic step (such as GLB export or storage upload)
+    fails, the worker must not leave the job stuck at 'refining' / 85%. It must catch the failure,
+    record JobStatus.failed on the Firestore document with a useful error message, and return failed.
+    """
+    fs, st = mock_cloud_environment
+    mock_extract.return_value = _create_mock_landmarks_and_silhouettes()
+    mock_export_glb.side_effect = RuntimeError("Disk or mesh export error occurred.")
+
+    def slow_critic(overlays, meas):
+        time.sleep(0.5)
+        return CriticReport(regions=[], stop=True, summary="Timeout report.")
+
+    result = process_twin_job(
+        job_id="job_101",
+        firestore_client=fs,
+        storage_client=st,
+        critic_llm_fn=slow_critic,
+        critic_timeout_s=0.1,
+    )
+
+    assert result["status"] == JobStatus.failed.value
+    assert result["error_code"] == "PROCESSING_ERROR"
+    assert "Disk or mesh export error occurred" in result["error_message"]
+
+    job = fs.get_job("job_101")
+    assert job["status"] == JobStatus.failed.value
+    assert job["error_code"] == "PROCESSING_ERROR"
+    assert "Disk or mesh export error occurred" in job["error_message"]

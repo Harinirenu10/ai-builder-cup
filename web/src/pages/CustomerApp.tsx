@@ -18,6 +18,9 @@ import {
   WifiOff,
   X,
   ExternalLink,
+  Save,
+  Check,
+  Shirt,
 } from 'lucide-react';
 import '@google/model-viewer';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -35,6 +38,20 @@ interface PhotoState {
   dataUrl: string | null;
   fileName: string | null;
 }
+
+// The predefined garments the demo try-on serves (services/geometry/tryon.py::GARMENTS).
+// Arbitrary retailer garments are deliberately out of scope for this endpoint.
+// `null` is the plain body twin, which is always the first option and always reachable.
+const DEMO_TRYON_GARMENT_ID = 'demo-threads-classic-crew-tee';
+const DEMO_TRYON_TROUSERS_ID = 'demo-threads-fitted-trousers';
+
+type TryOnChoice = { id: string | null; label: string; building: string };
+
+const TRY_ON_CHOICES: TryOnChoice[] = [
+  { id: null, label: 'Body Twin', building: 'Loading 3D model preview…' },
+  { id: DEMO_TRYON_GARMENT_ID, label: 'T-Shirt', building: 'Building the T-shirt on your twin…' },
+  { id: DEMO_TRYON_TROUSERS_ID, label: 'Trousers', building: 'Building the trousers on your twin…' },
+];
 
 const VIEW_CONFIG: Record<ViewType, { label: string; desc: string }> = {
   front: { label: 'Front View', desc: 'Arms raised out to shoulder height — clear gap at chest' },
@@ -272,8 +289,36 @@ export const CustomerApp: React.FC = () => {
   const [glbObjectUrl, setGlbObjectUrl] = useState<string | null>(null);
   const [glbLoadError, setGlbLoadError] = useState<string | null>(null);
 
+  // Demo virtual try-on (the predefined garments in services/geometry/tryon.py::GARMENTS).
+  // Picking one swaps the GLB the viewer loads: the plain body twin, or one GLB holding the
+  // same body plus a real 3D garment shell built on it. Same loader, same <model-viewer>, so
+  // camera-controls/auto-rotate keep working on the combined model, and "Body Twin" always
+  // takes the viewer back.
+  const [tryOnGarmentId, setTryOnGarmentId] = useState<string | null>(null);
+  const tryOnActive = tryOnGarmentId !== null;
+  const twinIdForTryOn: string | null = displayTwin?.twin_id || displayTwin?.id || null;
+
+  const activeGlbPath = useMemo<string | null>(() => {
+    const basePath: string | undefined = displayTwin?.glb_url;
+    if (!basePath) return null;
+    if (tryOnGarmentId && twinIdForTryOn) {
+      return `/api/twin/${encodeURIComponent(twinIdForTryOn)}/tryon/${tryOnGarmentId}/glb`;
+    }
+    return basePath;
+  }, [displayTwin?.glb_url, tryOnGarmentId, twinIdForTryOn]);
+
+  const activeTryOnChoice = useMemo(
+    () => TRY_ON_CHOICES.find((choice) => choice.id === tryOnGarmentId) ?? TRY_ON_CHOICES[0],
+    [tryOnGarmentId],
+  );
+
+  // A different twin is a different body, so never keep a try-on built for the previous one.
   useEffect(() => {
-    const glbPath: string | undefined = displayTwin?.glb_url;
+    setTryOnGarmentId(null);
+  }, [twinIdForTryOn]);
+
+  useEffect(() => {
+    const glbPath: string | null = activeGlbPath;
     let cancelled = false;
     let revoke: (() => void) | null = null;
 
@@ -301,6 +346,8 @@ export const CustomerApp: React.FC = () => {
               ? 'Sign in to view your 3D twin.'
               : err.status === 403
               ? 'This 3D twin does not belong to the signed-in account.'
+              : err.status === 503
+              ? 'The 3D geometry service is unavailable right now, so the try-on could not be built.'
               : err.message || 'Could not load the 3D model preview.'
             : 'Could not load the 3D model preview.';
         setGlbLoadError(msg);
@@ -312,7 +359,7 @@ export const CustomerApp: React.FC = () => {
         revoke();
       }
     };
-  }, [displayTwin?.glb_url]);
+  }, [activeGlbPath]);
 
   // Mutation for creating 3D body twin job via apiClient.
   //
@@ -351,6 +398,40 @@ export const CustomerApp: React.FC = () => {
 
   const isSubmitting = createTwinMutation.isPending;
 
+  // "Save My 3D Twin": records the user's explicit intent to keep this twin.
+  //
+  // The backend already persists every successful twin document + its GLB (worker.py), so this
+  // does not perform the storage write -- it flips the twin's `saved` flag via
+  // POST /v1/me/twin/{twin_id}/save, which is idempotent server-side (saving an already-saved
+  // twin is a no-op that keeps the original saved_at). Duplicate saves are prevented on both
+  // ends: the button is disabled while the request is in flight and once `saved` is true, and
+  // the endpoint itself is a no-op on repeat. The refetch afterwards is what updates the status
+  // badge, so the UI only ever claims "Saved" after the backend confirmed it.
+  const [saveTwinError, setSaveTwinError] = useState<string | null>(null);
+  const saveTwinMutation = useMutation({
+    mutationFn: async (twinId: string) => {
+      return await apiClient.post<any>(`/v1/me/twin/${encodeURIComponent(twinId)}/save`);
+    },
+    onMutate: () => setSaveTwinError(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['twin'] });
+      refetchTwin();
+    },
+    onError: (err: any) => {
+      const msg =
+        err instanceof ApiError
+          ? err.status === 401
+            ? 'Sign in to save your 3D twin.'
+            : err.status === 403
+            ? 'This 3D twin does not belong to the signed-in account.'
+            : err.status === 404
+            ? 'That twin no longer exists on the server.'
+            : err.message || 'Could not save your 3D twin.'
+          : 'Could not save your 3D twin.';
+      setSaveTwinError(msg);
+    },
+  });
+
   // "Analyze Fit for My Twin" from a shared product URL (Android Share Target card below).
   // Calls the customer-authenticated /v1/me/fit-from-url: it always resolves MY OWN twin
   // server-side from current_uid, never sends any measurement or user id -- the request body is
@@ -359,7 +440,14 @@ export const CustomerApp: React.FC = () => {
   const [sharedFitError, setSharedFitError] = useState<string | null>(null);
   const analyzeSharedUrlMutation = useMutation({
     mutationFn: async (productUrl: string) => {
-      return await apiClient.post<any>('/v1/me/fit-from-url', { product_url: productUrl });
+      // A product URL nobody has read before costs one page render plus one extraction model
+      // call server-side, and the API already bounds that itself: it waits READER_READ_TIMEOUT_S
+      // (35s) for the Reader and then answers with a specific 504/422 of its own. apiClient's
+      // 15s default was below that floor, so a read that was still in progress -- or had already
+      // succeeded -- got thrown away by the browser and reported as a timeout. This budget sits
+      // just above the server's so its own clear error surfaces instead. Repeat reads of the
+      // same URL come from the Reader's cache in about two seconds.
+      return await apiClient.post<any>('/v1/me/fit-from-url', { product_url: productUrl }, { timeoutMs: 40000 });
     },
     onMutate: () => setSharedFitError(null),
     onError: (err: any) => {
@@ -778,12 +866,54 @@ export const CustomerApp: React.FC = () => {
               <span>@google/model-viewer 3D Canvas</span>
             </div>
 
+            {/* Demo try-on picker. Kept outside the loaded-model branch below so every option
+                stays reachable (and the choice reversible) while a mesh is still being built. */}
+            {displayTwin?.glb_url && twinIdForTryOn && (
+              <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1">
+                <div
+                  role="group"
+                  aria-label="Try on a demo garment"
+                  className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900/80 backdrop-blur-md shadow"
+                >
+                  <Shirt className="w-3.5 h-3.5 text-indigo-300 mx-1.5" aria-hidden="true" />
+                  {TRY_ON_CHOICES.map((choice) => {
+                    const selected = choice.id === tryOnGarmentId;
+                    return (
+                      <button
+                        key={choice.id ?? 'body'}
+                        type="button"
+                        onClick={() => setTryOnGarmentId(choice.id)}
+                        aria-pressed={selected}
+                        className={`min-h-[32px] px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                          selected
+                            ? 'bg-white text-slate-900'
+                            : 'text-slate-200 hover:bg-white/15'
+                        }`}
+                      >
+                        {choice.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {tryOnActive && (
+                  <span className="max-w-[16rem] text-right text-[10px] leading-tight text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-2 py-1 rounded-md">
+                    Real 3D garment geometry on your own twin. Visualization only &mdash; no cloth
+                    simulation, and not a fit verdict.
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* 3D body twin representation */}
             {displayTwin?.glb_url && glbObjectUrl ? (
               <div className="w-full h-80 flex flex-col items-center rounded-xl bg-sky-50/50 dark:bg-slate-900/50 overflow-hidden">
                 <model-viewer
                   src={glbObjectUrl}
-                  alt={`3D Body Twin ${displayTwin.twin_id || displayTwin.id || 'avatar'}`}
+                  alt={
+                    tryOnActive
+                      ? `3D Body Twin ${displayTwin.twin_id || displayTwin.id || 'avatar'} wearing the demo ${activeTryOnChoice.label.toLowerCase()}`
+                      : `3D Body Twin ${displayTwin.twin_id || displayTwin.id || 'avatar'}`
+                  }
                   camera-controls
                   auto-rotate
                   shadow-intensity="1"
@@ -793,6 +923,11 @@ export const CustomerApp: React.FC = () => {
                   <span className="text-[11px] px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 font-mono">
                     Twin: {displayTwin.twin_id || displayTwin.id || 'Fitted'}
                   </span>
+                  {tryOnActive && (
+                    <span className="text-[11px] px-2.5 py-1 rounded-md bg-violet-500/20 text-violet-200 font-mono">
+                      Wearing: {activeTryOnChoice.label}
+                    </span>
+                  )}
                   <span className="text-[11px] px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-300 font-mono">
                     Scale: {heightCm} cm
                   </span>
@@ -801,7 +936,42 @@ export const CustomerApp: React.FC = () => {
                       IoU: {(displayTwin.final_iou * 100).toFixed(1)}%
                     </span>
                   )}
+                  {displayTwin.saved ? (
+                    <span
+                      className="text-[11px] px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 font-mono flex items-center gap-1"
+                      title={displayTwin.saved_at ? `Saved ${new Date(displayTwin.saved_at).toLocaleString()}` : 'Saved'}
+                    >
+                      <Check className="w-3 h-3" />
+                      Saved
+                    </span>
+                  ) : (
+                    (displayTwin.twin_id || displayTwin.id) && (
+                      <button
+                        type="button"
+                        onClick={() => saveTwinMutation.mutate(displayTwin.twin_id || displayTwin.id)}
+                        disabled={saveTwinMutation.isPending}
+                        className="text-[11px] px-2.5 py-1 rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold flex items-center gap-1 transition-all"
+                      >
+                        {saveTwinMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Saving&hellip;
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3 h-3" />
+                            Save My 3D Twin
+                          </>
+                        )}
+                      </button>
+                    )
+                  )}
                 </div>
+                {saveTwinError && (
+                  <div className="w-full px-3 pb-2 bg-slate-900/80 backdrop-blur-md text-[11px] text-rose-300 text-center">
+                    {saveTwinError}
+                  </div>
+                )}
               </div>
             ) : displayTwin?.glb_url && glbLoadError ? (
               <div className="w-full h-80 flex flex-col items-center justify-center border-2 border-dashed border-rose-300 dark:border-rose-800 rounded-xl bg-rose-50/40 dark:bg-slate-900/50 p-6 text-center">
@@ -821,7 +991,9 @@ export const CustomerApp: React.FC = () => {
             ) : displayTwin?.glb_url ? (
               <div className="w-full h-80 flex flex-col items-center justify-center rounded-xl bg-sky-50/50 dark:bg-slate-900/50">
                 <Loader2 className="w-10 h-10 text-sky-500 animate-spin mb-3" />
-                <p className="text-xs text-slate-500 dark:text-slate-400">Loading 3D model preview&hellip;</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {activeTryOnChoice.building}
+                </p>
               </div>
             ) : postJobTwinFetchFailed ? (
               <div className="w-full h-80 flex flex-col items-center justify-center border-2 border-dashed border-rose-300 dark:border-rose-800 rounded-xl bg-rose-50/40 dark:bg-slate-900/50 p-6 text-center">

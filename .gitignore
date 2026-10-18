@@ -59,5 +59,8 @@ Thumbs.db
 # API local store
 services/api/.data/
 
+# Geometry/twin pipeline local store (twin + job documents, GLB blobs)
+services/geometry/.data/
+
 # Local body-photo test data (private; never commit raw body photos)
 local-test-data/

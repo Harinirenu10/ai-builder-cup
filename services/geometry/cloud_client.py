@@ -41,6 +41,10 @@ class FirestoreClientProtocol(Protocol):
         """Fetch twin document by id from twins/{twin_id}."""
         ...
 
+    def update_twin(self, twin_id: str, updates: dict[str, Any]) -> None:
+        """Merge fields into an existing twin document at twins/{twin_id}."""
+        ...
+
     def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
         """Most recently created twin document owned by user_id, or None if they have none."""
         ...
@@ -134,6 +138,11 @@ class InMemoryFirestoreClient:
 
     def get_twin(self, twin_id: str) -> dict[str, Any] | None:
         return self.twins.get(twin_id)
+
+    def update_twin(self, twin_id: str, updates: dict[str, Any]) -> None:
+        if twin_id not in self.twins:
+            self.twins[twin_id] = {"id": twin_id}
+        self.twins[twin_id].update(updates)
 
     def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
         owned = [(i, t) for i, t in enumerate(self.twins.values()) if t.get("user_id") == user_id]
@@ -268,6 +277,9 @@ class GoogleCloudFirestoreClient:
         doc = self.db.collection("twins").document(twin_id).get()
         return doc.to_dict() if doc.exists else None
 
+    def update_twin(self, twin_id: str, updates: dict[str, Any]) -> None:
+        self.db.collection("twins").document(twin_id).set(updates, merge=True)
+
     def get_latest_twin_for_user(self, user_id: str) -> dict[str, Any] | None:
         query = (
             self.db.collection("twins")
@@ -377,11 +389,13 @@ def set_cloud_clients(
 
 
 def get_firestore_client() -> FirestoreClientProtocol:
-    """Get active Firestore client, falling back to in-memory if GCP is not configured.
+    """Get active Firestore client, falling back to the dev store if GCP is not configured.
 
-    The in-memory fallback is cached process-wide (same pattern as the live GCP client
+    The dev fallback is cached process-wide (same pattern as the live GCP client
     would naturally provide) so that a job created in one request is still visible to
-    later requests (status polling, twin lookup) within the same running process.
+    later requests (status polling, twin lookup) within the same running process. It is
+    also disk-backed by default (services/geometry/local_persistence.py), so twins and
+    jobs survive a process restart; set GEOMETRY_STORE=memory for a pure in-RAM store.
     """
     global _global_firestore_client
     if _global_firestore_client is not None:
@@ -393,17 +407,21 @@ def get_firestore_client() -> FirestoreClientProtocol:
             _global_firestore_client = GoogleCloudFirestoreClient()
             return _global_firestore_client
         except Exception as exc:
-            logger.warning("Could not initialize live Firestore client: %s. Using InMemoryFirestoreClient.", exc)
+            logger.warning("Could not initialize live Firestore client: %s. Using the local dev store.", exc)
 
-    _global_firestore_client = InMemoryFirestoreClient()
+    from services.geometry.local_persistence import build_dev_firestore_client  # lazy: avoids a circular import
+
+    _global_firestore_client = build_dev_firestore_client()
     return _global_firestore_client
 
 
 def get_storage_client() -> StorageClientProtocol:
-    """Get active Storage client, falling back to in-memory if GCP is not configured.
+    """Get active Storage client, falling back to the dev store if GCP is not configured.
 
-    The in-memory fallback is cached process-wide so uploaded photos/GLB assets remain
+    The dev fallback is cached process-wide so uploaded photos/GLB assets remain
     reachable by later requests within the same running process (see get_firestore_client).
+    It is also disk-backed by default (services/geometry/local_persistence.py), so a twin's
+    GLB survives a process restart; set GEOMETRY_STORE=memory for a pure in-RAM store.
     """
     global _global_storage_client
     if _global_storage_client is not None:
@@ -414,7 +432,9 @@ def get_storage_client() -> StorageClientProtocol:
             _global_storage_client = GoogleCloudStorageClient()
             return _global_storage_client
         except Exception as exc:
-            logger.warning("Could not initialize live Storage client: %s. Using InMemoryStorageClient.", exc)
+            logger.warning("Could not initialize live Storage client: %s. Using the local dev store.", exc)
 
-    _global_storage_client = InMemoryStorageClient()
+    from services.geometry.local_persistence import build_dev_storage_client  # lazy: avoids a circular import
+
+    _global_storage_client = build_dev_storage_client()
     return _global_storage_client

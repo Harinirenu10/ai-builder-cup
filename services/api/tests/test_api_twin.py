@@ -380,3 +380,47 @@ def test_get_twin_glb_not_found_when_no_glb_asset(mock_cloud):
     fs.create_twin("twin_no_glb", {"id": "twin_no_glb", "user_id": "alice"})
     resp = client.get("/api/twin/twin_no_glb/glb", headers=auth("alice"))
     assert resp.status_code == 404
+
+
+def test_get_twin_glb_returns_404_when_storage_object_missing(mock_cloud):
+    """Regression: when a twin references a glb_storage_url but the backing file is missing
+    from storage (e.g. stale probe or deleted file), GET /api/twin/{id}/glb must return 404
+    (not 500 internal server error)."""
+    fs, _ = mock_cloud
+    fs.create_twin(
+        "twin_missing_glb",
+        {
+            "id": "twin_missing_glb",
+            "user_id": "alice",
+            "glb_storage_url": "gs://local-dev-bucket/users/alice/twins/twin_missing_glb/twin.glb",
+        },
+    )
+    resp = client.get("/api/twin/twin_missing_glb/glb", headers=auth("alice"))
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"].lower()
+
+
+def test_me_twin_preserves_twin_data_when_glb_file_missing(mock_cloud):
+    """Regression: if a twin's backing GLB file is missing from storage, the twin record
+    itself (measurements, zones, etc.) must remain accessible via /v1/me/twin without breaking."""
+    fs, _ = mock_cloud
+    fs.create_twin(
+        "twin_probe_without_file",
+        {
+            "id": "twin_probe_without_file",
+            "user_id": "alice",
+            "glb_storage_url": "gs://local-dev-bucket/users/alice/twins/twin_probe_without_file/twin.glb",
+            "measurements": {"zones": {"chest": {"value_cm": 95.0, "confidence": 0.9, "source": "smpl_fit"}}},
+            "created_at": "2026-10-18T10:00:00Z",
+        },
+    )
+    resp = client.get("/v1/me/twin", headers=auth("alice"))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["twin_id"] == "twin_probe_without_file"
+    assert data["measurements"]["zones"]["chest"]["value_cm"] == 95.0
+    assert data["glb_url"] == "/api/twin/twin_probe_without_file/glb"
+
+    # Attempting to stream the missing GLB returns 404, not 500
+    glb_resp = client.get(data["glb_url"], headers=auth("alice"))
+    assert glb_resp.status_code == 404

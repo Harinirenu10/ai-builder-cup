@@ -290,3 +290,31 @@ test('loadObjectUrl propagates a 403 ApiError (cross-user access) without creati
     globalThis.fetch = originalFetch;
   }
 });
+
+// Regression for the "No 3D Twin Yet despite worker logs showing privacy cleanup completing" bug:
+// an un-proxied dev-server path (e.g. a '/v1/...' call when only '/api' was in vite.config.ts's
+// proxy table) falls through to Vite's own SPA fallback, which answers unmatched GETs with
+// index.html at HTTP 200, Content-Type text/html. ApiClient.request() sees response.ok === true
+// and a text/* content-type, so it resolves successfully with the raw HTML string instead of
+// throwing -- meaning callers' ApiError-based error handling (404/409 => null, or a retry-UI
+// catch block) never engages, and the caller is left holding HTML in place of twin JSON. The
+// real fix is proxying every prefix the app uses (see vite-proxy.test.mjs); this test locks down
+// the ApiClient behavior itself so the failure mode stays understood and detectable.
+test('ApiClient resolves (does not throw) when a 200 response has non-JSON text content, returning the raw text', async () => {
+  const client = new ApiClient();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response('<!doctype html><html><body>Vite SPA fallback</body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    });
+
+  try {
+    const result = await client.get('/v1/me/twin');
+    assert.equal(typeof result, 'string');
+    assert.ok(result.includes('<html>'));
+    assert.equal(result?.glb_url, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

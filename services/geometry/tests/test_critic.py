@@ -696,3 +696,55 @@ def test_critic_loop_strict_overall_timeout_aborts_slow_critic_and_preserves_fit
     assert final_fit == initial_fit
     assert final_fit.is_valid
 
+
+def test_critic_loop_timeout_uses_daemon_threads_and_skips_overlay_upload():
+    """Regression test: timed-out critic calls must not leak non-daemon background threads
+    or accumulate threads across repeated calls, and must skip bulky overlay uploads
+    so network/storage I/O cannot block the post-timeout completion flow.
+    """
+    import threading
+
+    lm_results, photo_masks, photos_rgb = _create_synthetic_test_context()
+    target_measurements = Measurements(zones={})
+    initial_fit = fit_smpl_shape(target_measurements, target_height_cm=175.0, max_steps=5)
+
+    def slow_hanging_critic(overlays, meas):
+        time.sleep(2.0)
+        return CriticReport(regions=[], stop=True, summary="Never on time.")
+
+    class CountingStorageClient:
+        def __init__(self):
+            self.upload_count = 0
+
+        def upload_bytes(self, destination_path, data, content_type="image/png"):
+            self.upload_count += 1
+            return f"gs://test/{destination_path}"
+
+    mock_storage = CountingStorageClient()
+
+    initial_threads = threading.enumerate()
+    # Run 3 consecutive timed-out critic loops
+    for round_idx in range(3):
+        final_fit, round_logs, _ = run_critic_refinement_loop(
+            initial_fit=initial_fit,
+            target_measurements=target_measurements,
+            target_height_cm=175.0,
+            gender="neutral",
+            landmark_results=lm_results,
+            photo_masks=photo_masks,
+            photos_rgb=photos_rgb,
+            critic_llm_fn=slow_hanging_critic,
+            max_rounds=1,
+            critic_timeout_s=0.1,
+            storage_client=mock_storage,
+            overlay_path_prefix="users/u/jobs/j/overlays",
+        )
+        assert len(round_logs) == 1
+        # Overlay upload was skipped on timeout to prevent blocking on storage
+        assert round_logs[0].overlay_urls == {}
+        assert mock_storage.upload_count == 0
+
+    # Verify no non-daemon threads were leaked
+    active_non_daemon = [t for t in threading.enumerate() if not t.daemon]
+    initial_non_daemon = [t for t in initial_threads if not t.daemon]
+    assert len(active_non_daemon) <= len(initial_non_daemon)

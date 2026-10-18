@@ -23,6 +23,7 @@ import datetime
 import logging
 import math
 import os
+import threading
 import time
 from typing import Any, Callable
 import cv2
@@ -313,7 +314,7 @@ def run_critic_refinement_loop(
             else float(os.environ.get("CRITIC_TIMEOUT_S", "25.0"))
         )
 
-        def _get_critic_report() -> CriticReport | None:
+        def _get_critic_report(abort_evt: threading.Event | None = None, timeout_s: float | None = None) -> CriticReport | None:
             if critic_llm_fn is not None:
                 return critic_llm_fn(best_overlays, best_measurements)
             from fitcore.llm import generate_json
@@ -346,16 +347,39 @@ def run_critic_refinement_loop(
                 parts=critic_parts,
                 schema=CriticReport,
                 system=critic_system,
+                abort_event=abort_evt,
+                timeout=timeout_s,
             )
+
+        abort_event = threading.Event()
+        result_holder: list[CriticReport | None] = []
+        exc_holder: list[Exception] = []
+        done_event = threading.Event()
+
+        def _worker_target():
+            try:
+                res = _get_critic_report(abort_evt=abort_event, timeout_s=timeout_limit)
+                result_holder.append(res)
+            except Exception as e:
+                exc_holder.append(e)
+            finally:
+                done_event.set()
 
         try:
             if timeout_limit > 0:
-                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                try:
-                    future = executor.submit(_get_critic_report)
-                    critic_report = future.result(timeout=timeout_limit)
-                finally:
-                    executor.shutdown(wait=False, cancel_futures=True)
+                t = threading.Thread(
+                    target=_worker_target,
+                    name=f"omni-critic-r{round_num}",
+                    daemon=True,
+                )
+                t.start()
+                completed = done_event.wait(timeout=timeout_limit)
+                if not completed:
+                    abort_event.set()
+                    raise concurrent.futures.TimeoutError("The read operation timed out")
+                if exc_holder:
+                    raise exc_holder[0]
+                critic_report = result_holder[0] if result_holder else None
             else:
                 critic_report = _get_critic_report()
             critic_notes = critic_report.summary if critic_report else ""
@@ -388,6 +412,8 @@ def run_critic_refinement_loop(
         # best (already-computed, already-validated) fit as-is -- never fabricate a critic
         # verdict or treat this as a fit failure.
         if critic_error_occurred or critic_report is None:
+            # On critic error or timeout, skip heavy overlay uploads for an unevaluated round
+            overlay_urls = {} if critic_error_occurred else _persist_overlays(best_overlays, round_num)
             round_logs.append(
                 RoundLogDocument(
                     round=round_num,
@@ -398,11 +424,15 @@ def run_critic_refinement_loop(
                     step_size=round(step_size, 3),
                     zone_adjustments={},
                     per_view_iou=best_per_view_iou,
-                    overlay_urls=_persist_overlays(best_overlays, round_num),
+                    overlay_urls=overlay_urls,
                     critic_notes=critic_notes,
                     critic_latency_ms=critic_latency_ms,
                     timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 )
+            )
+            logger.info(
+                "Critic review finished for round %d: %s. Returning best fit (mean IoU=%.4f).",
+                round_num, critic_notes, best_mean_iou,
             )
             break
 
@@ -524,4 +554,9 @@ def run_critic_refinement_loop(
                 # Step size vanished; stop early
                 break
 
+    logger.info(
+        "Critic refinement loop completed: %d round(s) logged, best mean IoU=%.4f. Returning fit result.",
+        len(round_logs),
+        best_mean_iou,
+    )
     return best_fit, round_logs, best_overlays

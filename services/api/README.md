@@ -99,3 +99,80 @@ Staff-only. UI: `/biz/simulate`. Nothing per body ever leaves the service: only 
 | `POST /v1/biz/simulate/facts` | the exact statistics the memo is written from, so its numbers can be checked |
 
 The population is read once per process from parquet at `POPULATION_PATH` (default `services/api/.data/population_standin_v1.parquet`; a `gs://` path works with `google-cloud-storage` installed) and generated and cached there if missing. It is a **statistical stand-in with invented distributions, not SMPL** (see `packages/fitcore/README.md`); the banner in every response says so and the page shows it permanently.
+
+## Demo virtual try-on (one tee, one pair of trousers)
+
+`apilib/tryon.py`, backed by `services/geometry/tryon.py`.
+
+- `GET /api/tryon/garments` — the predefined catalog. Two entries: the
+  "Demo Threads Co. Classic Crew Tee" (`kind: "top"`) and the
+  "Demo Threads Co. Fitted Trousers" (`kind: "bottom"`).
+- `GET /api/twin/{twin_id}/tryon/{garment_id}/glb?pose=standing` — streams one
+  GLB scene holding two nodes, `body` and the garment (`demo_tee` or
+  `demo_trousers`). Signed-in, owner-only (same rule as
+  `GET /api/twin/{twin_id}/glb`), cached per twin **and** per garment. Both
+  paths are also served without the `/api` prefix for direct Cloud Run calls.
+
+Each garment is real 3D geometry, not an image overlay: a closed offset shell
+(outer face, inner face, stitched rim at every opening) built from that twin's
+own SMPL surface, so placement follows the twin by construction. Which vertices
+a garment covers comes from the SMPL model's own skinning weights, so it works
+for any gender and any betas. The body mesh is handed back unchanged, and both
+meshes share one grounding transform so the garment cannot drift off the body.
+
+- **Top** (`TopGarmentSpec`): a body panel plus two sleeves. Four openings —
+  neckline, hem, two cuffs.
+- **Bottom** (`BottomGarmentSpec`): a waistband plus two separate legs with a
+  real inseam between them — never a single skirt-like tube. Three openings —
+  the waistband and one hem per leg. The waistband is cut along the twin's own
+  pelvis→neck axis, and each leg is cut at a distance measured along that leg's
+  own hip→knee→ankle chain, so both survive a pose change.
+
+`leg_length_fraction` and `ease_cm` are the length and fit dials: shorts,
+cropped and full-length trousers are the same geometry code with one number
+changed, which is how jeans or shorts get added later (a spec in
+`tryon.GARMENTS` plus a blurb in `apilib/tryon.py`, no new geometry path).
+
+It is a visualization: **no cloth simulation** (no drape, gravity, collision
+solve or stretch) and **no fit verdict** — sizing answers stay with the Fit
+Engine (`POST /v1/fit-query`) and the body-mesh fit heatmap (`POST /fit/mesh`).
+
+Building a shell is an SMPL forward pass plus mesh work (~2–3 s on CPU), so
+each instance keeps the last few results in memory; a cold instance rebuilds.
+
+Verify it without the cloud:
+
+```bash
+python -m services.geometry.tryon --garment demo-threads-classic-crew-tee --out tee.glb
+python -m services.geometry.tryon --garment demo-threads-fitted-trousers \
+    --betas 0.4,-0.3,0.1,0,0.2,0,0,0,0,0 --out trousers.glb
+pytest services/geometry/tests/test_tryon.py services/api/tests/test_tryon_api.py
+```
+
+The CLI prints the shell's measured diagnostics (watertight, boundary loops and
+their ring sizes, clearance band in cm, folded-face ratio, and for a bottom the
+gap between the two leg shells below the knee) and writes a GLB you can drop
+into any glTF viewer. In the customer PWA, the picker at the top right of the
+3D twin panel switches between **Body Twin**, **T-Shirt** and **Trousers**;
+rotation, zoom and auto-rotate work on all three, and Body Twin always takes
+the viewer back.
+
+### Known limits
+
+- No cloth simulation. The offset is a geometric ease field, so garments read
+  as close-fitting knits/wovens; drape, bunching, folds at the knee and a
+  hanging hem are not representable.
+- Not a fit measurement. Clearance is a display parameter, not a measured
+  garment dimension, so nothing here should be read as "this size fits".
+- Around 1% of each shell's outer faces fold back on themselves in tight
+  concave creases (armpit and under the chin for the tee; the crotch and the
+  back of the knee for the trousers). The shell stays watertight; the ratio is
+  reported as `folded_face_ratio`.
+- The trousers have no fly, pockets, belt loops or seam allowance, and the
+  waistband is a cut edge rather than a separate band.
+- At the top of the inseam the two legs' offset surfaces come close enough to
+  touch, as real trousers do; below the knee they are measurably apart
+  (`leg_shell_min_gap_below_knee_cm`).
+- The seated pose builds and stays watertight for both garments, but the tee's
+  hem cut splits into five boundary loops there rather than four, so the
+  endpoint defaults to standing.

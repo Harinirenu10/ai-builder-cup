@@ -36,7 +36,7 @@ def read_file(path: Path, live: bool, label: str | None = None):
             raise SystemExit(f"No recorded response for {path.stem}. Run with --record first, or pass --live.")
         use_offline_env()
         client = ReplayClient(fx)
-    ext = _extract_from_capture(cap, url, client, None)
+    ext, _chart_from_html = _extract_from_capture(cap, url, client, None)
     return ext, assemble(ext, url=url, product_id=url_key(url)[:16], fallback_brand=path.stem, image_urls=cap.image_urls)
 
 

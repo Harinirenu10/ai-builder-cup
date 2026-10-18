@@ -66,6 +66,10 @@ class FirestoreStore:
         self._col.document(key).set(doc)
 
 
+def _file_store() -> "FileStore":
+    return FileStore(Path(os.environ.get("READER_CACHE_DIR", Path(__file__).resolve().parent.parent / ".cache")))
+
+
 def default_store() -> Store:
     mode = os.environ.get("READER_CACHE", "auto").lower()
     if mode == "memory":
@@ -80,13 +84,16 @@ def default_store() -> Store:
             if mode == "firestore":
                 raise
             # mode == "auto" with GOOGLE_CLOUD_PROJECT set but no usable credentials (missing
-            # ADC, unreachable Firestore, etc.) -- fall back to an in-memory cache for this
-            # process instead of crashing every /read call. Logged, not swallowed.
+            # ADC, unreachable Firestore, etc.) -- fall back to this module's documented default,
+            # the on-disk store, rather than to memory. A RAM cache dies with the process, and a
+            # dev server restarting on every edit then re-reads every URL from scratch: each read
+            # pays a page render plus an extraction model call again, which is what made a
+            # "working" reader still look like a timeout from the browser.
             logger.warning(
-                "Could not initialize Firestore cache store (%s); using MemoryStore for this process.", exc
+                "Could not initialize Firestore cache store (%s); using the on-disk cache instead.", exc
             )
-            return MemoryStore()
-    return FileStore(Path(os.environ.get("READER_CACHE_DIR", Path(__file__).resolve().parent.parent / ".cache")))
+            return _file_store()
+    return _file_store()
 
 
 class ReadCache:

@@ -216,3 +216,79 @@ def test_rate_limited_per_uid(client, store, monkeypatch):
     second = _ask(client, "https://shop.example/products/kurta", uid)
     assert first.status_code == 200, first.text
     assert second.status_code == 429
+
+
+# ----------------------------------------------------------------------------- regression tests for Reader 502 & safe logging
+
+
+def test_reader_internal_error_status_raises_502_with_safe_logging(client, caplog, monkeypatch):
+    """When Reader reports status=error in JSON, API returns 502 reader_error and logs structured diagnostic."""
+    _patch_reader(monkeypatch, lambda u, j, t: _FakeResponse(200, {"status": "error", "reason": "extraction_failed: KeyError"}))
+    with caplog.at_level("ERROR", logger="api.fitquery"):
+        resp = _ask(client, "https://shop.example/products/error-item", "alice")
+    assert resp.status_code == 502
+    assert resp.json()["detail"]["code"] == "reader_error"
+    assert "Reader returned status=error" in caplog.text
+    assert "extraction_failed: KeyError" in caplog.text
+
+
+def test_reader_http_502_server_error_surfaces_502(client, caplog, monkeypatch):
+    """When Reader service responds with HTTP 502, API returns 502 reader_error (not 422)."""
+    _patch_reader(monkeypatch, lambda u, j, t: _FakeResponse(502, {"detail": "Playwright browser timeout"}))
+    with caplog.at_level("ERROR", logger="api.fitquery"):
+        resp = _ask(client, "https://shop.example/products/broken", "alice")
+    assert resp.status_code == 502
+    assert resp.json()["detail"]["code"] == "reader_error"
+    assert "Reader HTTP 502 server error" in caplog.text
+    assert "Playwright browser timeout" in caplog.text
+
+
+def test_reader_safe_logging_never_logs_tokens_or_query_params(client, caplog, monkeypatch):
+    """Server-side diagnostic logs must strip query params and sensitive tokens from target URLs."""
+    _patch_reader(monkeypatch, lambda u, j, t: _FakeResponse(502, {"detail": "upstream failure"}))
+    sensitive_url = "https://user:password@shop.example/products/item?access_token=SUPER_SECRET_123&session=priv_456"
+    with caplog.at_level("ERROR", logger="api.fitquery"):
+        resp = _ask(client, sensitive_url, "alice")
+    assert resp.status_code == 502
+    assert "SUPER_SECRET_123" not in caplog.text
+    assert "priv_456" not in caplog.text
+    assert "password" not in caplog.text
+    assert "shop.example/products/item" in caplog.text
+
+
+def test_local_demo_store_product_fitting_success(client, monkeypatch):
+    """Local demo-store URL (e.g. http://localhost:5173/store/shirt.html) returns successful fit."""
+    demo_shirt_chart = {
+        "chart_type": "garment",
+        "sizes": {
+            "S": {"chest": 108.0, "shoulder_width": 44.0, "sleeve_length": 60.0},
+            "M": {"chest": 114.0, "shoulder_width": 46.0, "sleeve_length": 61.5},
+            "L": {"chest": 120.0, "shoulder_width": 48.0, "sleeve_length": 63.0},
+            "XL": {"chest": 126.0, "shoulder_width": 50.0, "sleeve_length": 64.5},
+        },
+    }
+    shirt_resp = {
+        "status": "ok",
+        "url": "http://localhost:5173/store/shirt.html",
+        "product": {
+            "id": "demo_shirt_1",
+            "brand": "Demo Threads Co.",
+            "title": "Oxford Button-Down Shirt",
+            "category": "shirt",
+            "fit_type": "regular",
+            "fabric": [],
+            "stretch_class": "none",
+            "pre_shrunk": None,
+            "size_chart": demo_shirt_chart,
+        },
+        "reviews": None,
+        "flags": [],
+        "cached": False,
+    }
+    _patch_reader(monkeypatch, lambda u, j, t: _FakeResponse(200, shirt_resp))
+    resp = _ask(client, "http://localhost:5173/store/shirt.html", "alice")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["recommended_size"] in ("S", "M", "L", "XL")
+    assert isinstance(body["confidence"], float)
+    assert len(body["zone_verdicts"]) > 0

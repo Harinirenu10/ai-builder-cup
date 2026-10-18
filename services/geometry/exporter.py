@@ -263,3 +263,106 @@ def export_zone_heatmap_glb(
             f.write(glb_bytes)
 
     return glb_bytes
+
+
+def export_tryon_glb(
+    body_vertices: np.ndarray,
+    body_faces: np.ndarray,
+    garment_vertices: np.ndarray,
+    garment_faces: np.ndarray,
+    garment_base_color: tuple[float, float, float, float] = (0.16, 0.26, 0.42, 1.0),
+    garment_roughness: float = 0.85,
+    garment_metallic: float = 0.0,
+    garment_name: str = "garment",
+    output_path: str | Path | None = None,
+    ground_mesh: bool = True,
+    body_color: tuple[int, int, int, int] = DEFAULT_TWIN_COLOR,
+) -> bytes:
+    """Export ONE GLB holding two nodes: the body twin and a garment shell.
+
+    Both meshes are moved by the SAME grounding transform (computed from the
+    body alone), so the garment cannot drift off the body. The body node keeps
+    export_twin_glb's existing neutral-grey vertex coloring, unchanged; the
+    garment node gets a matte PBR material so it reads as fabric rather than as
+    a second layer of skin.
+
+    Args:
+        body_vertices: (N, 3) body vertices in metres.
+        body_faces: (M, 3) body triangle indices.
+        garment_vertices: (P, 3) garment-shell vertices, in the SAME coordinate
+            space as body_vertices (no pre-applied grounding).
+        garment_faces: (Q, 3) garment triangle indices.
+        garment_base_color: RGBA 0-1 PBR base color factor.
+        garment_roughness: PBR roughness factor (1.0 = fully matte).
+        garment_metallic: PBR metallic factor (0.0 = dielectric cloth).
+        garment_name: Node name for the garment geometry in the GLB scene.
+        output_path: Optional destination path to write the .glb file.
+        ground_mesh: If True, shift both meshes so the body's soles rest at
+            Y=0 and the body is horizontally centred.
+        body_color: RGBA uint8 for the body, same default as export_twin_glb.
+
+    Returns:
+        Raw bytes of the compiled .glb asset.
+
+    Raises:
+        ValueError: If either mesh is malformed, non-finite, or empty.
+    """
+    bv = np.asarray(body_vertices, dtype=np.float32)
+    bf = np.asarray(body_faces, dtype=np.int32)
+    gv = np.asarray(garment_vertices, dtype=np.float32)
+    gf = np.asarray(garment_faces, dtype=np.int32)
+
+    for name, verts, faces in (("body", bv, bf), ("garment", gv, gf)):
+        if verts.ndim != 2 or verts.shape[1] != 3:
+            raise ValueError(f"{name} vertices must have shape (N, 3), got {verts.shape}.")
+        if faces.ndim != 2 or faces.shape[1] != 3:
+            raise ValueError(f"{name} faces must have shape (M, 3), got {faces.shape}.")
+        if len(verts) == 0 or len(faces) == 0:
+            raise ValueError(f"{name} vertices and faces must not be empty.")
+        if not np.all(np.isfinite(verts)):
+            raise ValueError(f"{name} vertices contain NaN or Infinite coordinate values.")
+        if np.any(faces < 0) or np.any(faces >= len(verts)):
+            raise ValueError(f"{name} faces contain vertex indices out of bounds.")
+
+    bv_export = bv.copy()
+    gv_export = gv.copy()
+    if ground_mesh:
+        # One shared transform, derived from the body only -- identical to
+        # export_twin_glb's grounding so the body node lands where it always has.
+        offset = np.array(
+            [float(np.mean(bv[:, 0])), float(np.min(bv[:, 1])), float(np.mean(bv[:, 2]))],
+            dtype=np.float32,
+        )
+        bv_export -= offset
+        gv_export -= offset
+
+    body = trimesh.Trimesh(vertices=bv_export, faces=bf, process=False)
+    body.fix_normals()
+    body.visual = trimesh.visual.ColorVisuals(
+        mesh=body,
+        vertex_colors=np.full((len(bv_export), 4), body_color, dtype=np.uint8),
+    )
+
+    garment = trimesh.Trimesh(vertices=gv_export, faces=gf, process=False)
+    garment.visual = trimesh.visual.TextureVisuals(
+        material=trimesh.visual.material.PBRMaterial(
+            name=f"{garment_name}_fabric",
+            baseColorFactor=[float(c) for c in garment_base_color],
+            roughnessFactor=float(garment_roughness),
+            metallicFactor=float(garment_metallic),
+            doubleSided=True,
+        )
+    )
+
+    scene = trimesh.Scene({"body": body, garment_name: garment})
+    glb_bytes = scene.export(file_type="glb")
+    if not isinstance(glb_bytes, bytes):
+        glb_bytes = bytes(glb_bytes)
+
+    if output_path is not None:
+        p = Path(output_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "wb") as f:
+            f.write(glb_bytes)
+
+    return glb_bytes

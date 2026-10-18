@@ -345,6 +345,7 @@ def process_twin_job(
             },
         )
 
+        logger.info("Job %s: Starting critic refinement loop...", job_id)
         best_fit, round_logs, _ = run_critic_refinement_loop(
             initial_fit=initial_fit,
             target_measurements=measurements,
@@ -359,24 +360,39 @@ def process_twin_job(
             overlay_path_prefix=f"users/{user_id}/jobs/{job_id}/critic_overlays",
             critic_timeout_s=critic_timeout_s,
         )
+        logger.info(
+            "Job %s: Critic refinement loop finished (%d rounds executed). Proceeding to GLB export.",
+            job_id,
+            len(round_logs),
+        )
 
         # Log each round to Firestore jobs/{job_id}/rounds/{round_num}
         for r_doc in round_logs:
-            fs.create_round_log(job_id=job_id, round_num=r_doc.round, log_data=r_doc)
+            try:
+                fs.create_round_log(job_id=job_id, round_num=r_doc.round, log_data=r_doc)
+            except Exception as r_exc:
+                logger.warning("Job %s: Failed to save round %d log: %s", job_id, r_doc.round, r_exc)
 
+        logger.info("Job %s: Exporting GLB mesh from fit result...", job_id)
         glb_bytes = export_fit_result_to_glb(best_fit, ground_mesh=True)
+        logger.info("Job %s: GLB mesh exported successfully (%d bytes). Validating GLB...", job_id, len(glb_bytes))
+
         is_valid, err_msg, _ = validate_glb_bytes(glb_bytes)
         if not is_valid:
+            logger.error("Job %s: GLB validation failed: %s", job_id, err_msg)
             raise RuntimeError(f"GLB validation failed: {err_msg}")
+        logger.info("Job %s: GLB validation passed.", job_id)
 
         # 8. Upload GLB to Cloud Storage
         twin_id = f"twin_{uuid.uuid4().hex[:12]}"
         glb_storage_path = f"users/{user_id}/twins/{twin_id}/twin.glb"
+        logger.info("Job %s: Uploading GLB to storage (%s)...", job_id, glb_storage_path)
         glb_storage_url = st.upload_bytes(
             destination_path=glb_storage_path,
             data=glb_bytes,
             content_type="model/gltf-binary",
         )
+        logger.info("Job %s: GLB uploaded successfully: %s", job_id, glb_storage_url)
 
         # 9. Build final measurements model for TwinDocument
         final_zones: dict[MeasurementZone, Measurement] = {}
@@ -396,7 +412,20 @@ def process_twin_job(
                 )
         final_measurements = Measurements(zones=final_zones)
 
-        final_mean_iou = round(float(round_logs[-1].mean_iou_after), 4) if round_logs else None
+        # final_mean_iou must correspond to best_fit -- the mesh actually exported and saved above
+        # -- not to round_logs[-1].mean_iou_after, which on a REJECTED final round records the
+        # rolled-back (worse) candidate's IoU, not the retained mesh's. The refinement loop keeps
+        # the best accepted mesh (critic.py: best_fit/best_mean_iou), so reconstruct that retained
+        # IoU from the logs: it starts at the initial fit's IoU (round 1's mean_iou_before) and
+        # advances to a round's mean_iou_after only when that round was accepted.
+        if round_logs:
+            retained_iou = round_logs[0].mean_iou_before
+            for r_log in round_logs:
+                if r_log.accepted:
+                    retained_iou = r_log.mean_iou_after
+            final_mean_iou = round(float(retained_iou), 4)
+        else:
+            final_mean_iou = None
 
         twin_doc = TwinDocument(
             id=twin_id,
@@ -409,9 +438,12 @@ def process_twin_job(
             final_mean_iou=final_mean_iou,
             created_at=_iso_now(),
         )
+        logger.info("Job %s: Saving twin document (%s) to database...", job_id, twin_id)
         fs.create_twin(twin_id=twin_id, twin_data=twin_doc)
+        logger.info("Job %s: Twin document (%s) saved to database.", job_id, twin_id)
 
         # 10. Update JobDocument to Done
+        logger.info("Job %s: Updating job status to 'done' (twin_id=%s)...", job_id, twin_id)
         fs.update_job(
             job_id,
             {
@@ -421,10 +453,16 @@ def process_twin_job(
                 "updated_at": _iso_now(),
             },
         )
+        logger.info("Job %s: Job status successfully updated to 'done'.", job_id)
 
-        # 11. Enforce Privacy Cleanup: delete raw photos
-        _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
-        _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
+        # 11. Enforce Privacy Cleanup: delete raw photos (non-fatal if cleanup has issues)
+        logger.info("Job %s: Enforcing photo privacy cleanup...", job_id)
+        try:
+            _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
+            _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
+            logger.info("Job %s: Photo privacy cleanup complete.", job_id)
+        except Exception as cleanup_exc:
+            logger.warning("Job %s: Photo cleanup encountered non-fatal error: %s", job_id, cleanup_exc)
 
         return {
             "status": JobStatus.done.value,
@@ -437,19 +475,26 @@ def process_twin_job(
 
     except Exception as exc:
         logger.exception("Unexpected error in twin job %s: %s", job_id, exc)
-        fs.update_job(
-            job_id,
-            {
-                "status": JobStatus.failed.value,
-                "error_code": "PROCESSING_ERROR",
-                "error_message": str(exc),
-                "current_step": "failed",
-                "updated_at": _iso_now(),
-            },
-        )
+        try:
+            fs.update_job(
+                job_id,
+                {
+                    "status": JobStatus.failed.value,
+                    "error_code": "PROCESSING_ERROR",
+                    "error_message": str(exc),
+                    "current_step": "failed",
+                    "updated_at": _iso_now(),
+                },
+            )
+            logger.info("Job %s: Failure status recorded in database.", job_id)
+        except Exception as update_err:
+            logger.exception("Job %s: Could not update status to failed: %s", job_id, update_err)
         # Attempt privacy cleanup even on unexpected crash
-        _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
-        _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
+        try:
+            _cleanup_storage_photos(st, photo_refs, opt_in_keep_front=opt_in_keep_front)
+            _cleanup_job_record_photos(fs, job_id, raw_photos, opt_in_keep_front=opt_in_keep_front)
+        except Exception:
+            pass
         return {
             "status": JobStatus.failed.value,
             "job_id": job_id,

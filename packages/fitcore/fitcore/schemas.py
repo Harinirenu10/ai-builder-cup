@@ -484,6 +484,8 @@ class TwinDocument(BaseModel):
     glb_storage_url: str | None = Field(default=None, description="Cloud Storage URI for rendered .glb avatar")
     final_mean_iou: float | None = Field(default=None, ge=0.0, le=1.0, description="Final silhouette IoU achieved across 4 views")
     created_at: str = Field(...)
+    saved: bool = Field(default=False, description="Whether the owner has explicitly confirmed/kept this twin via the Save action")
+    saved_at: str | None = Field(default=None, description="ISO timestamp of the explicit save action, or None if never saved")
 
 
 class TailorLines(BaseModel):

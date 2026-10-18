@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -20,11 +22,32 @@ from fitcore.fit.verdict import alteration_hint, guarantee_eligible, zone_verdic
 from fitcore.schemas import FitResult, Measurements, Product
 from services.geometry.cloud_client import get_firestore_client
 
+logger = logging.getLogger("api.fitquery")
+
 router = APIRouter()
 DEFAULT_RATE_PER_MIN = 60
 # The Reader service's own hard timeout on one page read (readerlib/pipeline.py::HARD_LIMIT_S)
 # is 25s; add margin for the network hop and the Reader's own startup/queueing time.
 READER_READ_TIMEOUT_S = 35.0
+
+
+def _safe_url_for_logging(url: str | None) -> str:
+    """Safe URL representation for logging: scheme, host, and path only.
+
+    Query parameters, fragments, userinfo, and raw payloads are stripped to prevent leaking
+    tokens, session IDs, or personal data.
+    """
+    if not url:
+        return "<empty-url>"
+    try:
+        raw = str(url).strip()
+        parsed = urlparse(raw)
+        if not parsed.scheme and not parsed.netloc:
+            return parsed.path.split("?")[0]
+        host = parsed.netloc.split("@")[-1]
+        return f"{parsed.scheme}://{host}{parsed.path}"
+    except Exception:
+        return "<unparseable-url>"
 
 
 def now_iso() -> str:
@@ -237,33 +260,64 @@ def read_product_from_url(product_url: str, http_client: Any = None) -> FitQuery
     Raises the same apilib.auth.err(...) HTTPException shape as the rest of this module, with a
     clear, safe (never a raw stack trace or internal detail) reason for every documented Reader
     outcome: unreachable/timeout, blocked, unsupported, extraction error, and no size chart found.
+    Logs structured diagnostics on failures without leaking credentials, tokens, or raw image content.
     """
     requester = http_client or requests
+    reader_base = _reader_base_url()
+    safe_url = _safe_url_for_logging(product_url)
+    endpoint = f"{reader_base}/read"
+
     try:
-        resp = requester.post(f"{_reader_base_url()}/read", json={"url": product_url}, timeout=READER_READ_TIMEOUT_S)
-    except requests.exceptions.Timeout:
+        resp = requester.post(endpoint, json={"url": product_url}, timeout=READER_READ_TIMEOUT_S)
+    except requests.exceptions.Timeout as exc:
+        logger.error(
+            "Reader timeout after %.1fs calling %s for product_url=%s: %s",
+            READER_READ_TIMEOUT_S, endpoint, safe_url, exc
+        )
         raise err(504, "reader_timeout", "That product page took too long to read. Please try again.")
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as exc:
+        logger.error(
+            "Reader unreachable at %s for product_url=%s: %s: %s",
+            endpoint, safe_url, type(exc).__name__, exc
+        )
         raise err(502, "reader_unavailable", "Could not reach the product reader right now. Please try again shortly.")
 
     if resp.status_code >= 400:
         try:
-            reason = resp.json().get("detail") or "Could not read that product page."
+            detail = resp.json().get("detail")
+            reason = detail or "Could not read that product page."
         except Exception:
+            detail = None
             reason = "Could not read that product page."
-        raise err(422, "reader_error", str(reason))
+
+        if resp.status_code >= 500:
+            logger.error(
+                "Reader HTTP %d server error from %s for product_url=%s: detail=%s",
+                resp.status_code, endpoint, safe_url, detail or "unknown"
+            )
+            raise err(502, "reader_error", str(reason))
+        else:
+            logger.warning(
+                "Reader HTTP %d client error from %s for product_url=%s: detail=%s",
+                resp.status_code, endpoint, safe_url, detail or "unknown"
+            )
+            raise err(422, "reader_error", str(reason))
 
     data = resp.json()
     status = data.get("status")
     if status == "blocked":
+        logger.info("Reader page blocked for product_url=%s (reason=%s)", safe_url, data.get("reason"))
         raise err(422, "page_blocked", "This store's page could not be read right now.")
     if status == "unsupported":
+        logger.info("Reader unsupported product category for product_url=%s (reason=%s)", safe_url, data.get("reason"))
         raise err(422, "unsupported_category", "This product isn't a supported garment category yet.")
     if status == "error":
+        logger.error("Reader returned status=error for product_url=%s: reason=%s", safe_url, data.get("reason"))
         raise err(502, "reader_error", "Could not read that product page. Please try again.")
 
     product = data.get("product")
     if not product or not product.get("size_chart"):
+        logger.warning("Product page had no size chart for product_url=%s", safe_url)
         raise err(422, "no_size_chart", "This product page has no size chart, so a fit recommendation isn't possible.")
 
     return FitQueryProduct(

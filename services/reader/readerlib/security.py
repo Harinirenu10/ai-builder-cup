@@ -15,7 +15,11 @@ class UnsafeURL(ValueError):
 def validate_url(url: str, *, allow_private: bool | None = None) -> str:
     """Return the URL if it is a public http(s) URL; raise UnsafeURL otherwise."""
     if allow_private is None:
-        allow_private = os.environ.get("READER_ALLOW_PRIVATE") == "1"
+        raw = os.environ.get("READER_ALLOW_PRIVATE")
+        if raw is not None:
+            allow_private = raw == "1"
+        else:
+            allow_private = os.environ.get("AUTH_MODE") == "dev"
     url = url.strip()
     parts = urlparse(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:

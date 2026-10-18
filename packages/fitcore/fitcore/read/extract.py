@@ -1,10 +1,13 @@
 """Extract a Product and ReviewSignals from page text and screenshots with one structured LLM call (flash)."""
 
 import json
+import logging
 from typing import Any
 
 from fitcore import llm
 from fitcore.read.models import PageExtraction
+
+logger = logging.getLogger("fitcore.read.extract")
 
 MAX_TEXT_CHARS = 20000  # keeps a request inside a 16k-token local model; Gemini has room to spare
 
@@ -33,7 +36,36 @@ def build_parts(text: str, json_ld: list[dict] | None = None, images: list[bytes
     return ["\n\n".join(chunks), *(images or [])]
 
 
+def _read_nothing(ext: PageExtraction) -> bool:
+    """True when the call came back structurally valid but carrying nothing usable.
+
+    A small local model does fail this way: it answers the schema with an empty product rather
+    than raising, so generate_json's own Ollama-to-Gemini fallback -- which only triggers on an
+    exception -- cannot see it. A missing size chart alone is deliberately NOT counted here:
+    plenty of pages genuinely have none, and a chart published as an HTML table is recovered
+    deterministically by fitcore.read.tables instead of by spending another model call.
+    """
+    return ext.product.category is None and not ext.product.sizes
+
+
 def extract(text: str, json_ld: list[dict] | None = None, images: list[bytes] | None = None,
-            url: str | None = None, client: Any | None = None, ollama_transport: Any | None = None) -> PageExtraction:
+            url: str | None = None, client: Any | None = None, ollama_transport: Any | None = None,
+            timeout: float | None = None) -> PageExtraction:
     parts = build_parts(text, json_ld, images, url)
-    return llm.generate_json("flash", parts, PageExtraction, system=SYSTEM, client=client, ollama_transport=ollama_transport)
+    ext = llm.generate_json("flash", parts, PageExtraction, system=SYSTEM, client=client,
+                            ollama_transport=ollama_transport, timeout=timeout)
+    if not _read_nothing(ext):
+        return ext
+
+    # Retry once on Gemini, but only when the first attempt was not already Gemini and a
+    # Gemini model is actually configured -- otherwise this would burn a round trip to rediscover
+    # that there is nowhere to fall back to.
+    if llm.get_backend() not in ("auto", "ollama"):
+        return ext
+    stronger = llm.gemini_backend_for_role("flash")
+    if stronger is None:
+        logger.warning("Extraction returned nothing usable and no Gemini model is configured to retry on.")
+        return ext
+    logger.warning("Extraction returned nothing usable; retrying once on %s.", stronger)
+    return llm.generate_json("flash", parts, PageExtraction, system=SYSTEM, client=client,
+                            backend=stronger, timeout=timeout)

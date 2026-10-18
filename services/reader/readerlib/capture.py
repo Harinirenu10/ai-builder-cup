@@ -5,10 +5,12 @@ One visit per URL. If the site shows a captcha, a login wall or answers 401/403/
 """
 
 import asyncio
+import atexit
 import contextlib
 import json
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -121,10 +123,9 @@ async def _step(coro: Any, cap_ms: float) -> Any:
         return None
 
 
-async def _capture(url: str, budget_s: float) -> Capture:
+async def _capture(url: str, budget_s: float, browser: Any) -> Capture:
     from playwright.async_api import Error as PWError
     from playwright.async_api import TimeoutError as PWTimeout
-    from playwright.async_api import async_playwright
 
     deadline = time.monotonic() + budget_s
 
@@ -132,10 +133,11 @@ async def _capture(url: str, budget_s: float) -> Capture:
         ms = max(300.0, (deadline - time.monotonic()) * 1000)
         return min(ms, cap) if cap else ms
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+    # A fresh context per capture keeps every visit isolated (its own cookies, storage and cache),
+    # exactly as a fresh browser did -- only the expensive browser process itself is now shared.
+    async with await browser.new_context(viewport=VIEWPORT) as context:
         try:
-            page = await (await browser.new_context(viewport=VIEWPORT)).new_page()
+            page = await context.new_page()
             if url.startswith("file:") or os.environ.get("READER_OFFLINE") == "1":
                 # Saved sample pages (and tests) must render the same offline: refuse requests to other hosts.
                 origin = urlparse(url).netloc
@@ -192,18 +194,108 @@ async def _capture(url: str, budget_s: float) -> Capture:
         except (PWTimeout, PWError) as exc:
             return Capture(status="error", reason=f"capture_failed: {str(exc).splitlines()[0][:160]}")
         finally:
+            # Only this visit's context is torn down; the shared browser stays up for the next one.
             with contextlib.suppress(Exception):
-                await asyncio.wait_for(browser.close(), timeout=3)
+                await asyncio.wait_for(context.close(), timeout=3)
+
+
+class _BrowserHost:
+    """Owns one headless Chromium on one long-lived event loop, in its own daemon thread.
+
+    Launching Playwright's driver and a Chromium process per request cost about 6.7s of the
+    roughly 9s each cache-missing /read call spent in capture -- measured, and far more than the
+    page work itself (~2.2s). That overhead, on top of the extraction model call, pushed a first
+    read past the browser's own request timeout even though the page was trivial to render.
+
+    The browser process is shared; each capture still gets its own fresh context, so visits stay
+    isolated from one another. A dedicated thread with a persistent loop is what makes reuse
+    possible at all: Playwright objects belong to the loop that created them, and capture_page is
+    a synchronous call (pipeline.py runs it via asyncio.to_thread), so there is no caller loop to
+    attach to. Captures are submitted to that loop instead.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._playwright: Any = None
+        self._browser: Any = None
+
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is None:
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=loop.run_forever, name="reader-browser", daemon=True).start()
+            self._loop = loop
+        return self._loop
+
+    async def _ensure_browser(self) -> Any:
+        from playwright.async_api import async_playwright
+
+        if self._browser is not None and self._browser.is_connected():
+            return self._browser
+        # First use, or the browser died (crash, external kill): start a fresh one.
+        self._browser = None
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=True)
+        return self._browser
+
+    def capture(self, url: str, budget_s: float) -> Capture:
+        loop = self._ensure_loop()
+
+        async def run() -> Capture:
+            browser = await self._ensure_browser()
+            return await asyncio.wait_for(_capture(url, budget_s, browser), timeout=budget_s + 2)
+
+        with self._lock:  # serialize launches, and keep one page at a time as before
+            future = asyncio.run_coroutine_threadsafe(run(), loop)
+            try:
+                return future.result(timeout=budget_s + 8)
+            except (asyncio.TimeoutError, TimeoutError):
+                future.cancel()
+                return Capture(status="error", reason="timeout")
+
+    def warm(self, timeout_s: float = 60.0) -> None:
+        loop = self._ensure_loop()
+        with self._lock:
+            asyncio.run_coroutine_threadsafe(self._ensure_browser(), loop).result(timeout=timeout_s)
+
+    def close(self) -> None:
+        loop, self._loop = self._loop, None
+        browser, self._browser = self._browser, None
+        playwright, self._playwright = self._playwright, None
+        if loop is None:
+            return
+
+        async def shutdown() -> None:
+            with contextlib.suppress(Exception):
+                if browser is not None:
+                    await browser.close()
+            with contextlib.suppress(Exception):
+                if playwright is not None:
+                    await playwright.stop()
+
+        with contextlib.suppress(Exception):
+            asyncio.run_coroutine_threadsafe(shutdown(), loop).result(timeout=10)
+        loop.call_soon_threadsafe(loop.stop)
+
+
+_host = _BrowserHost()
+atexit.register(_host.close)
 
 
 def capture_page(url: str, budget_s: float = BUDGET_S) -> Capture:
     """Visit the URL once. Never runs longer than budget_s plus a short cleanup, even if the page hangs."""
-    async def run() -> Capture:
-        try:
-            return await asyncio.wait_for(_capture(url, budget_s), timeout=budget_s + 2)
-        except asyncio.TimeoutError:
-            return Capture(status="error", reason="timeout")
-    return asyncio.run(run())
+    return _host.capture(url, budget_s)
+
+
+def warm_browser(timeout_s: float = 60.0) -> None:
+    """Launch the shared browser now, so the first read does not pay for it."""
+    _host.warm(timeout_s)
+
+
+def close_browser() -> None:
+    """Shut the shared browser and its loop down (service shutdown, and tests)."""
+    _host.close()
 
 
 async def _open_size_chart(page: Any, cap: Capture, left_ms: Any) -> None:

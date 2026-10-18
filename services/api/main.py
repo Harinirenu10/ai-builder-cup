@@ -33,6 +33,7 @@ from apilib.calendar_auth import router as calendar_router
 from apilib.charts import router as charts_router
 from apilib.cors import DynamicCORS
 from apilib.fit_mesh import _get_owned_twin, router as fit_mesh_router
+from apilib.tryon import router as tryon_router
 from apilib.fitquery import router as fit_query_router
 from apilib.gifts import router as gifts_router
 from apilib.orders import router as orders_router
@@ -72,6 +73,23 @@ except ImportError as _exc:  # geometry deps (smplx, mediapipe) are not installe
 
 logger = logging.getLogger("api.main")
 
+# Root-cause fix for "the logs show no critic/GLB/storage/twin/final-status messages": uvicorn's
+# own LOGGING_CONFIG (see uvicorn.config.LOGGING_CONFIG) only attaches a handler and level to its
+# own "uvicorn"/"uvicorn.error"/"uvicorn.access" loggers -- it never touches the root logger. This
+# module never called logging.basicConfig() either (only the offline CLI, services/geometry/
+# twin.py, did), so every logger.info(...) call throughout the real pipeline --
+# services/geometry/worker.py's phase-by-phase progress (critic refinement start, GLB export/
+# validation, storage upload, twin document save, job status update) and services/geometry/
+# critic.py's own INFO logs -- had no handler anywhere in its propagation chain and was silently
+# dropped. Confirmed directly: logging.getLogger("geometry.worker").getEffectiveLevel() was
+# WARNING with handlers == [] on both it and the root logger, under this exact import chain.
+# Configuring the root logger here (safe: uvicorn's own loggers have propagate=False, so this
+# does not duplicate uvicorn's own request logs) makes every one of those pre-existing log
+# statements actually visible, so a genuinely stuck job's last phase is identifiable from the
+# console without needing to add any new log statements.
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
 validate_security_config()  # fail startup, not the first request, on an unsafe auth config (see apilib/auth.py)
 
 app = FastAPI(
@@ -100,6 +118,11 @@ app.include_router(calendar_router)
 
 app.include_router(garment_router)
 app.include_router(fit_mesh_router)
+
+# Demo virtual try-on. Registered twice so the browser can reach it through the
+# Firebase Hosting /api/** rewrite, the same way GET /api/twin/{id}/glb is reached.
+app.include_router(tryon_router)
+app.include_router(tryon_router, prefix="/api")
 
 
 @app.get("/healthz")
@@ -286,7 +309,14 @@ def get_twin_glb_endpoint(twin_id: str, uid: str = Depends(current_uid)) -> Resp
     st = get_storage_client()
     try:
         glb_bytes = st.download_bytes(storage_url)
+    except FileNotFoundError as exc:
+        logger.warning("GLB asset missing from storage for twin '%s' at '%s': %s", twin_id, storage_url, exc)
+        raise HTTPException(status_code=404, detail=f"GLB asset not found: {exc}")
     except Exception as exc:
+        if exc.__class__.__name__ == "NotFound":
+            logger.warning("GLB asset missing from storage for twin '%s' at '%s': %s", twin_id, storage_url, exc)
+            raise HTTPException(status_code=404, detail=f"GLB asset not found: {exc}")
+        logger.exception("Failed to load GLB asset for twin '%s': %s", twin_id, exc)
         raise HTTPException(status_code=500, detail=f"Failed to load GLB asset: {exc}")
 
     return Response(content=glb_bytes, media_type="model/gltf-binary")
@@ -339,6 +369,8 @@ def get_my_twin(uid: str = Depends(current_uid)) -> dict[str, Any]:
             "measurements": latest.get("measurements"),
             "glb_url": f"/api/twin/{t_id}/glb" if latest.get("glb_storage_url") else None,
             "final_iou": latest.get("final_mean_iou"),
+            "saved": bool(latest.get("saved", False)),
+            "saved_at": latest.get("saved_at"),
         }
     from apilib.stores import get_store
     store_twin = get_store().get("twins", uid)
@@ -349,8 +381,33 @@ def get_my_twin(uid: str = Depends(current_uid)) -> dict[str, Any]:
             "measurements": store_twin.get("measurements"),
             "glb_url": None,
             "final_iou": 0.95,
+            "saved": bool(store_twin.get("saved", False)),
+            "saved_at": store_twin.get("saved_at"),
         }
     raise HTTPException(status_code=404, detail={"code": "no_twin", "message": "You have not created a body twin yet."})
+
+
+@app.post("/v1/me/twin/{twin_id}/save")
+@app.post("/api/v1/me/twin/{twin_id}/save")
+def save_my_twin(twin_id: str, uid: str = Depends(current_uid)) -> dict[str, Any]:
+    """Mark the caller's own twin as explicitly saved/kept.
+
+    The pipeline already persists every successful twin (worker.py's fs.create_twin), so this
+    records the user's explicit intent to keep this one rather than performing the storage write
+    itself. Idempotent on purpose: saving an already-saved twin is a no-op that returns the same
+    state and keeps the original saved_at, so a double-click or a retried request cannot produce
+    a duplicate save or move the timestamp. Ownership is enforced by the same _get_owned_twin
+    check the other twin endpoints use, so a caller can only ever save their own twin.
+    """
+    fs = get_firestore_client()
+    twin = _get_owned_twin(twin_id, uid, fs)
+
+    if twin.get("saved"):
+        return {"twin_id": twin_id, "saved": True, "saved_at": twin.get("saved_at"), "already_saved": True}
+
+    saved_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    fs.update_twin(twin_id, {"saved": True, "saved_at": saved_at})
+    return {"twin_id": twin_id, "saved": True, "saved_at": saved_at, "already_saved": False}
  
  
 class CustomerProgress(BaseModel):
